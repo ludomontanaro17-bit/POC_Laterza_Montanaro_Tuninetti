@@ -1,5 +1,5 @@
 import os
-import zipfile
+#import zipfile
 from kaggle.api.kaggle_api_extended import KaggleApi
 import pandas as pd
 
@@ -17,8 +17,8 @@ class KaggleLoader:
         self.api.authenticate()
 
         # Aggiorna i nomi dei file con i nomi reali nel dataset
-        self.train_filename = "home_sanction_train.csv"
-        self.test_filename = "home_sanction_test.csv"
+        self.train_filename = "loan_sanction_train.csv"
+        self.test_filename = "loan_sanction_test.csv"
         self.train_path = os.path.join(self.download_dir, self.train_filename)
         self.test_path = os.path.join(self.download_dir, self.test_filename)
 

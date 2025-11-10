@@ -6,11 +6,11 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from KaggleLoader import KaggleLoader
+
 
 class DataPreprocessing:
     def __init__(self, dataframe, target_column):
-        self.dataframe = dataframe.copy()
+        self.dataframe = dataframe
         self.target_column = target_column
         self.X = self.dataframe.drop(columns=[target_column])
         self.y = self.dataframe[target_column]
@@ -138,14 +138,22 @@ class DataPreprocessing:
         cat_cols = df.select_dtypes(include=['object','category']).columns.tolist()
         cat_cols = [c for c in cat_cols if c != self.target_column]
         for c in cat_cols:
-            df[c] = df[c].fillna('Unknown')
+            if df[c].isnull().any():
+                mode_val = df[c].mode(dropna=True)
+                if not mode_val.empty:
+                    df[c] = df[c].fillna(mode_val.iloc[0])
+                else:
+                    df[c] = df[c].fillna('Unknown')
 
         # Feature engineering
         if create_features:
             if 'ApplicantIncome' in df.columns and 'CoapplicantIncome' in df.columns:
                 df['TotalIncome'] = df['ApplicantIncome'] + df['CoapplicantIncome']
+                # Rimuovo le colonne originali per evitare collinearità
+                df.drop(['ApplicantIncome', 'CoapplicantIncome'], axis=1, inplace=True)
             elif 'ApplicantIncome' in df.columns:
                 df['TotalIncome'] = df['ApplicantIncome']
+                df.drop(['ApplicantIncome'], axis=1, inplace=True)
 
             if 'LoanAmount' in df.columns and 'TotalIncome' in df.columns:
                 # LoanAmount sometimes in thousands — be careful; assume same scale
