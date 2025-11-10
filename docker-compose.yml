@@ -1,0 +1,26 @@
+version: '3.8' # Usa una versione recente di Docker Compose
+
+services:
+  poc-app: # Nome del servizio
+    build: . # Costruisci l'immagine usando il Dockerfile nella directory corrente
+    # image: poc-image:latest # (Opzionale) Se hai già un'immagine buildata e la vuoi usare direttamente invece di buildarla ogni volta
+    container_name: poc_ml_container # Nome del container quando parte
+    volumes:
+      # Monta la cartella locale 'data' dentro il container
+      - ./data:/app/data
+      # Monta la cartella locale 'model' dentro il container per salvare/caricare modelli
+      - ./model:/app/model
+      # Monta la cartella locale 'presentation_figures' dentro il container per salvare grafici
+      - ./presentation_figures:/app/presentation_figures
+      # Monta la cartella locale 'presentation_tables' dentro il container
+      - ./presentation_tables:/app/presentation_tables
+    # environment:
+    #   - PYTHONPATH=/app # (Opzionale) Imposta PYTHONPATH se necessario
+    # Se usi Streamlit, esporsi la porta:
+    # ports:
+    #   - "8501:8501"
+    # Se usi Flask, esporsi la porta (es. 5000):
+    # ports:
+    #   - "5000:5000"
+    # Comando da eseguire (opzionale se già definito in Dockerfile)
+    # command: python main.py
