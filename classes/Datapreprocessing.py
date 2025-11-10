@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from KaggleLoader import KaggleLoader
 
 class DataPreprocessing:
     def __init__(self, dataframe, target_column):
@@ -14,7 +15,9 @@ class DataPreprocessing:
         self.X = self.dataframe.drop(columns=[target_column])
         self.y = self.dataframe[target_column]
         self.scaler = StandardScaler()
-
+        if self.target_column not in dataframe.columns:
+          raise ValueError(f"Target column '{self.target_column}' non presente nel dataframe")
+ 
     # --- Info & basic checks -------------------------------------------------
     def display_info(self):
         print("\nInformazioni sul dataset:")
@@ -93,6 +96,8 @@ class DataPreprocessing:
             plt.show()
         else:
             print("\nTarget non numerico: convertilo temporaneamente a 0/1 per vedere correlazioni numeriche.")
+       
+
 
     def cross_tab_credit_target(self):
         if 'Credit_History' in self.dataframe.columns:
