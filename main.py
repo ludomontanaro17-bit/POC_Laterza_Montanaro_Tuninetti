@@ -5,6 +5,10 @@ import seaborn as sns
 import joblib
 from classes.Datapreprocessing import DataPreprocessing
 from classes.KaggleLoader import KaggleLoader
+from classes.LogisticRegression import LogisticRegressionModel
+from classes.ModelEvaluator import ModelEvaluator
+from classes.KerasModel import KerasModel
+
 
 def main():
     # === Directory di output ================================================
@@ -127,6 +131,57 @@ def main():
 
     print(f"\n📁 Figure salvate in: {fig_dir}")
     print(f"📁 Oggetti salvati in: {model_dir}")
+
+    print(X_train.dtypes[X_train.dtypes == 'category'])
+    for col in X_train.columns:
+        if str(X_train[col].dtype) == 'category':
+            print(f"\n🔍 {col} → {X_train[col].unique()[:10]}")
+
+    # === STEP 6: Addestramento Logistic Regression ==========================
+
+    logreg_model = LogisticRegressionModel(model_dir="model")
+    logreg_model.train(X_train, y_train)
+    y_pred_lr, y_prob_lr = logreg_model.predict(X_val)
+    logreg_model.save_model()
+
+    # === STEP 7: Valutazione Logistic Regression ============================
+    print("\n🔍 Valutazione Logistic Regression:")
+    evaluator_lr = ModelEvaluator(
+        y_true=y_val,
+        y_pred_proba=y_prob_lr,
+        y_pred_class=y_pred_lr,
+        model_name="Logistic Regression"
+    )
+    evaluator_lr.evaluate()
+
+    # === STEP 8: Addestramento Rete Neurale Keras ===========================
+    keras_model = KerasModel(input_dim=X_train.shape[1], model_dir="model")
+    keras_model.train(
+        X_train=X_train,
+        y_train=y_train,
+        X_val=X_val,
+        y_val=y_val,
+        epochs=50,
+        batch_size=32,
+        verbose=1
+    )
+    keras_model.save_model()
+
+    # Predizioni Keras
+    y_prob_keras = keras_model.predict(X_val).flatten()
+    y_pred_keras = (y_prob_keras > 0.5).astype(int)
+
+    # === STEP 9: Valutazione Keras ==========================================
+    print("\n🔍 Valutazione Rete Neurale Keras:")
+    evaluator_nn = ModelEvaluator(
+        y_true=y_val,
+        y_pred_proba=y_prob_keras,
+        y_pred_class=y_pred_keras,
+        model_name="Keras Neural Network"
+    )
+    evaluator_nn.evaluate()
+
+    print("\n🏁 Tutte le valutazioni completate!")
 
 
 if __name__ == "__main__":

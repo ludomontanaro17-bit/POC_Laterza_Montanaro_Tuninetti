@@ -186,9 +186,12 @@ class DataPreprocessing:
                 df['IsGraduate'] = df['Education'].map({'Graduate': 1, 'Not Graduate': 0}).fillna(0).astype(int)
 
             # Income brackets
-            if 'TotalIncome' in df.columns:
-                df['Income_bracket'] = pd.qcut(df['TotalIncome'].rank(method='first'), q=3,
-                                               labels=['low', 'medium', 'high'])
+            income_labels = {'low': 0, 'medium': 1, 'high': 2}
+            df['Income_bracket'] = pd.qcut(
+                df['TotalIncome'].rank(method='first'),
+                q=3,
+                labels=['low', 'medium', 'high']
+            ).map(income_labels).astype(int)
 
             # Interaction Credit_History x IncomeHigh
             if 'Credit_History' in df.columns and 'Income_bracket' in df.columns:
@@ -201,6 +204,13 @@ class DataPreprocessing:
         elif encode_categoricals == 'label':
             for c in cat_cols:
                 df[c] = df[c].astype('category').cat.codes
+
+        # --- Encoding variabili binarie numeriche ---
+        # (Esempio: Credit_History o altre simili)
+        binary_like = ['Credit_History']
+        for col in binary_like:
+            if col in df.columns:
+                df[col] = df[col].fillna(0).astype(int)
 
         # --- Encoding target ---
         if df[self.target_column].dtype == 'object':
