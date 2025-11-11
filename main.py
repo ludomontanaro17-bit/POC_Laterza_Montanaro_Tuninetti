@@ -10,6 +10,7 @@ from classes.KaggleLoader import KaggleLoader
 from classes.LogisticRegression import LogisticRegressionModel
 from classes.ModelEvaluator import ModelEvaluator
 from classes.KerasModel import KerasModel
+from classes.FeatureImportance import FeatureImportanceAnalyzer
 # --- Nuovi Import ---
 from classes.XGBoost import XGBoostModel
 from classes.CrossValidator import CrossValidator
@@ -135,7 +136,13 @@ def main():
     print(f"Train size: {len(X_train)}, Validation size: {len(X_val)}")
     print(X_train.columns) 
     
+    # === Step 5.5: Prepara i nomi delle feature =============================
+    feature_names = X_train.columns.tolist()
+    print(f"Numero di feature: {len(feature_names)}")
+    print("Prime 10 feature:", feature_names[:10])
+
     # === Step 6: Salvataggio oggetti utili ==================================
+    joblib.dump(feature_names, os.path.join(model_dir, "feature_names.pkl"))
     joblib.dump(df_preprocessed.drop(columns=['Loan_Status']).columns.tolist(),
                 os.path.join(model_dir, "final_columns.pkl"))
 
@@ -265,6 +272,128 @@ def main():
 
 
     print("\n🏁 Tutte le valutazioni e confronti completati!")
+
+    # --- STEP 16: Analisi Importanza Features ===============================
+    print("\n--- Analisi Importanza Features ---")
+    
+    # Inizializza l'analizzatore
+    feature_analyzer = FeatureImportanceAnalyzer(model_dir=model_dir, fig_dir=fig_dir)
+    
+    # Analizza l'importanza per ogni modello
+    importance_results = {}
+    
+    # Logistic Regression
+    print("🔍 Analizzando importanza features Logistic Regression...")
+    lr_importance = feature_analyzer.analyze_logistic_regression_importance(
+        logreg_model.model, feature_names, X_val, y_val
+    )
+    importance_results['Logistic Regression'] = lr_importance
+    if lr_importance is not None:
+        print("Top 5 features Logistic Regression:")
+        print(lr_importance.head())
+    
+    # XGBoost
+    print("🔍 Analizzando importanza features XGBoost...")
+    xgb_importance = feature_analyzer.analyze_xgboost_importance(
+        xgb_model.model, feature_names
+    )
+    importance_results['XGBoost'] = xgb_importance
+    if xgb_importance is not None:
+        print("Top 5 features XGBoost:")
+        print(xgb_importance.head())
+    
+    # Keras Neural Network
+    print("🔍 Analizzando importanza features Keras...")
+    keras_importance = feature_analyzer.analyze_keras_importance(
+        keras_model.model, feature_names, X_val, y_val
+    )
+    importance_results['Keras NN'] = keras_importance
+    if keras_importance is not None:
+        print("Top 5 features Keras:")
+        print(keras_importance.head())
+    
+    # Crea visualizzazioni
+    print("📊 Creando visualizzazioni importanza features...")
+    feature_analyzer.plot_feature_importance_comparison(importance_results, top_n=12)
+    combined_importance = feature_analyzer.create_combined_importance_heatmap(importance_results, top_n=8)
+    
+    # Salva risultati
+    feature_analyzer.save_importance_results(importance_results, out_dir=out_dir)
+    
+    # --- STEP 17: Analisi Feature Consensus ================================
+    print("\n--- Analisi Consensus Features ---")
+    
+    def analyze_feature_consensus(importance_dict, top_n=10):
+        """Analizza il consenso tra i modelli sulle feature più importanti."""
+        consensus_scores = {}
+        
+        for feature in feature_names:
+            score = 0
+            appearances = 0
+            
+            for model_name, importance_df in importance_dict.items():
+                if importance_df is not None:
+                    feature_rank = importance_df[importance_df['feature'] == feature].index
+                    if not feature_rank.empty:
+                        rank = feature_rank[0] + 1  # +1 perché l'indice parte da 0
+                        if rank <= top_n:
+                            score += (top_n - rank + 1)  # Punteggio più alto per rank migliori
+                            appearances += 1
+            
+            if appearances > 0:
+                consensus_scores[feature] = {
+                    'total_score': score,
+                    'appearances': appearances,
+                    'average_score': score / appearances
+                }
+        
+        # Crea DataFrame con i risultati
+        consensus_df = pd.DataFrame([
+            {
+                'feature': feature,
+                'consensus_score': data['total_score'],
+                'models_agreeing': data['appearances'],
+                'average_rank_score': data['average_score']
+            }
+            for feature, data in consensus_scores.items()
+        ]).sort_values('consensus_score', ascending=False)
+        
+        return consensus_df
+    
+    # Calcola il consenso
+    consensus_df = analyze_feature_consensus(importance_results, top_n=10)
+    print("\n🎯 Top 10 Features per Consensus tra Modelli:")
+    print(consensus_df.head(10))
+    
+    # Salva il consensus
+    consensus_path = os.path.join(out_dir, "feature_consensus_ranking.csv")
+    consensus_df.to_csv(consensus_path, index=False)
+    print(f"✅ Consensus features salvato in: {consensus_path}")
+    
+    # Plot consensus
+    plt.figure(figsize=(12, 8))
+    top_consensus = consensus_df.head(15)
+    
+    fig, ax1 = plt.subplots(figsize=(14, 10))
+    
+    # Plot consensus score
+    ax1.barh(top_consensus['feature'], top_consensus['consensus_score'], 
+             color='skyblue', label='Consensus Score')
+    ax1.set_xlabel('Consensus Score')
+    ax1.set_ylabel('Features')
+    ax1.set_title('Top 15 Features - Consensus tra Modelli', fontsize=16, fontweight='bold')
+    
+    # Aggiungi numero di modelli che concordano
+    ax2 = ax1.twiny()
+    ax2.scatter(top_consensus['models_agreeing'], top_consensus['feature'], 
+                color='red', s=100, alpha=0.7, label='Models Agreeing')
+    ax2.set_xlabel('Number of Models Agreeing')
+    
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(fig_dir, 'feature_consensus_ranking.png'), 
+                dpi=150, bbox_inches='tight')
+    plt.close()
 
 
 if __name__ == "__main__":
