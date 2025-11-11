@@ -134,7 +134,7 @@ def main():
     print("✅ Train-test split completato.")
     print(f"Train size: {len(X_train)}, Validation size: {len(X_val)}")
     print(X_train.columns) 
-    """
+    
     # === Step 6: Salvataggio oggetti utili ==================================
     joblib.dump(df_preprocessed.drop(columns=['Loan_Status']).columns.tolist(),
                 os.path.join(model_dir, "final_columns.pkl"))

@@ -54,19 +54,20 @@ class XGBoostModel:
         # Aggiorna i parametri del modello con quelli forniti
         self.model.set_params(**xgb_params)
 
-        # Prepara le liste per la valutazione durante il training
+        # Prepara eval_set per l'early stopping e la valutazione
+        # eval_set è una lista di tuple (X, y) per la valutazione durante il training
         eval_set = [(X_train, y_train)]
-        eval_names = ['train']
         if X_val is not None and y_val is not None:
             eval_set.append((X_val, y_val))
-            eval_names.append('val')
 
         print("Inizio addestramento del modello XGBoost...")
         # Addestra il modello
+        # Usa eval_set invece di eval_set + eval_names
+        # early_stopping_rounds è un parametro diretto di fit() per XGBClassifier
         self.model.fit(
             X_train, y_train,
             eval_set=eval_set,
-            eval_names=eval_names,
+            # eval_names=eval_names, # Rimuovi questa riga
             early_stopping_rounds=early_stopping_rounds,
             verbose=True # Mostra la progressione del training
         )
@@ -123,3 +124,10 @@ class XGBoostModel:
             print(f"Modello XGBoost caricato da: {filepath}")
         else:
             print(f"Errore: Il file {filepath} non esiste.")
+
+# Esempio di utilizzo (opzionale, utile per testare la classe separatamente)
+# if __name__ == "__main__":
+#     # Questo richiede dati X_train, y_train, X_val, y_val preprocessati
+#     # xgb_model = XGBoostModel()
+#     # xgb_model.train(X_train, y_train, X_val, y_val)
+#     pass
