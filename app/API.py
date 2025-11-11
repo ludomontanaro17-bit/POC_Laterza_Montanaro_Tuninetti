@@ -60,7 +60,7 @@ class API:
         self._register_routes()
 
     def _load_all_models(self):
-        """Carica tutti i modelli."""
+       
         try:
             # Carica modello Keras
             if os.path.exists(self.model_paths['keras']):
@@ -78,7 +78,11 @@ class API:
             
             # Carica modello XGBoost
             if os.path.exists(self.model_paths['xgboost']):
-                self.models['xgboost'] = joblib.load(self.model_paths['xgboost'])
+                # *** MODIFICA APPLICATA ***
+                # CARICA XGBOOST MODEL con il metodo corretto per .json
+                xgb_instance = xgb.XGBClassifier() # Crea un nuovo oggetto XGBClassifier
+                xgb_instance.load_model(self.model_paths['xgboost']) # Carica i pesi/configurazione dal file JSON
+                self.models['xgboost'] = xgb_instance # Assegna l'oggetto caricato
                 print("✅ Modello XGBoost caricato con successo")
             else:
                 print("⚠️ Modello XGBoost non trovato")
