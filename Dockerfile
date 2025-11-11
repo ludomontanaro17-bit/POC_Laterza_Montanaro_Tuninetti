@@ -1,22 +1,25 @@
-# Usa un'immagine base di Python
+# Dockerfile
+# Usa un'immagine base leggera con Python 3.10
 FROM python:3.10-slim
 
-# Imposta la directory di lavoro all'interno del container
+# Imposta la directory di lavoro
 WORKDIR /app
 
-# Copia il file requirements.txt nel container
+# Copia solo requirements per sfruttare la cache Docker
 COPY requirements.txt .
 
-# Installa le dipendenze Python
-RUN pip install --no-cache-dir -r requirements.txt
+# Aggiorna pip e installa le dipendenze
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Copia tutti i file del progetto nella directory di lavoro del container
+# Copia tutto il progetto nella directory /app
 COPY . .
 
-# Comando da eseguire quando parte il container
-# Assumendo che il tuo script principale aggiornato si chiami main.py
-CMD ["python", "main.py"]
+# Imposta PYTHONPATH per permettere import come "from classes import ..."
+ENV PYTHONPATH="${PYTHONPATH}:/app"
 
-# Se invece vuoi usare Streamlit:
-# EXPOSE 8501
-# CMD ["streamlit", "run", "interactive_model.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# Espone la porta del server Flask
+EXPOSE 5000
+
+# Comando di avvio: lancia l’API Flask
+CMD ["python", "app/API.py"]
