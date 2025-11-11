@@ -1,3 +1,5 @@
+# main.py (aggiornato con CrossValidator, XGBoost, e valutazioni estese)
+
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -8,7 +10,10 @@ from classes.KaggleLoader import KaggleLoader
 from classes.LogisticRegression import LogisticRegressionModel
 from classes.ModelEvaluator import ModelEvaluator
 from classes.KerasModel import KerasModel
-
+# --- Nuovi Import ---
+from classes.XGBoost import XGBoostModel
+from classes.CrossValidator import CrossValidator
+# --------------------
 
 def main():
     # === Directory di output ================================================
@@ -132,29 +137,39 @@ def main():
     print(f"\n📁 Figure salvate in: {fig_dir}")
     print(f"📁 Oggetti salvati in: {model_dir}")
 
-    print(X_train.dtypes[X_train.dtypes == 'category'])
-    for col in X_train.columns:
-        if str(X_train[col].dtype) == 'category':
-            print(f"\n🔍 {col} → {X_train[col].unique()[:10]}")
+    # Rimuovi i print di debug se non servono più
+    # print(X_train.dtypes[X_train.dtypes == 'category'])
+    # for col in X_train.columns:
+    #     if str(X_train[col].dtype) == 'category':
+    #         print(f"\n🔍 {col} → {X_train[col].unique()[:10]}")
 
-    # === STEP 6: Addestramento Logistic Regression ==========================
-
+    # --- STEP 6: Addestramento Logistic Regression ==========================
+    print("\n--- Addestramento Logistic Regression ---")
     logreg_model = LogisticRegressionModel(model_dir="model")
     logreg_model.train(X_train, y_train)
     y_pred_lr, y_prob_lr = logreg_model.predict(X_val)
     logreg_model.save_model()
 
-    # === STEP 7: Valutazione Logistic Regression ============================
-    print("\n🔍 Valutazione Logistic Regression:")
+    # --- STEP 7: Valutazione Logistic Regression (Test Set) =================
+    print("\n🔍 Valutazione Logistic Regression (Test Set):")
     evaluator_lr = ModelEvaluator(
         y_true=y_val,
         y_pred_proba=y_prob_lr,
         y_pred_class=y_pred_lr,
         model_name="Logistic Regression"
     )
-    evaluator_lr.evaluate()
+    metrics_lr = evaluator_lr.evaluate() # Ottieni i risultati per il confronto
 
-    # === STEP 8: Addestramento Rete Neurale Keras ===========================
+    # --- STEP 8: Cross-Validation Logistic Regression (su Train Set) ========
+    print("\n🔍 Cross-Validation Logistic Regression (Train Set):")
+    cv_lr = CrossValidator(model=logreg_model.model, cv=5, scoring=['accuracy', 'roc_auc'])
+    cv_lr.validate(X_train, y_train)
+    cv_results_lr = cv_lr.get_mean_test_scores()
+    print(f"Mean CV Accuracy: {cv_results_lr['accuracy']:.4f}, Mean CV AUC: {cv_results_lr['roc_auc']:.4f}")
+
+
+    # --- STEP 9: Addestramento Rete Neurale Keras ===========================
+    print("\n--- Addestramento Rete Neurale Keras ---")
     keras_model = KerasModel(input_dim=X_train.shape[1], model_dir="model")
     keras_model.train(
         X_train=X_train,
@@ -171,17 +186,78 @@ def main():
     y_prob_keras = keras_model.predict(X_val).flatten()
     y_pred_keras = (y_prob_keras > 0.5).astype(int)
 
-    # === STEP 9: Valutazione Keras ==========================================
-    print("\n🔍 Valutazione Rete Neurale Keras:")
+    # --- STEP 10: Valutazione Keras (Test Set) ==============================
+    print("\n🔍 Valutazione Rete Neurale Keras (Test Set):")
     evaluator_nn = ModelEvaluator(
         y_true=y_val,
         y_pred_proba=y_prob_keras,
         y_pred_class=y_pred_keras,
         model_name="Keras Neural Network"
     )
-    evaluator_nn.evaluate()
+    metrics_keras = evaluator_nn.evaluate() # Ottieni i risultati per il confronto
 
-    print("\n🏁 Tutte le valutazioni completate!")
+    # --- STEP 11: Cross-Validation Keras (su Train Set) =====================
+    print("\n🔍 Cross-Validation Keras (Train Set):")
+    # Per Keras, dobbiamo usare il wrapper KerasClassifier da scikeras
+    # Assicurati di averlo installato: pip install scikeras
+    # from scikeras.wrappers import KerasClassifier
+    # def build_fn():
+    #     # Copia la logica di _build_model da KerasModel qui
+    #     # o passa l'istanza del modello compilato
+    #     pass # Implementazione richiesta
+    # cv_keras_model = KerasClassifier(model=build_fn, epochs=10, batch_size=32) # Usa poche epoche per CV
+    # cv_keras = CrossValidator(model=cv_keras_model, cv=3, scoring=['accuracy', 'roc_auc']) # CV rapida
+    # cv_keras.validate(X_train, y_train)
+    # cv_results_keras = cv_keras.get_mean_test_scores()
+    # print(f"Mean CV Accuracy: {cv_results_keras['accuracy']:.4f}, Mean CV AUC: {cv_results_keras['roc_auc']:.4f}")
+    # Per ora, saltiamo la CV per Keras per semplicità, a meno che tu non implementi il wrapper scikeras.
+
+    # --- STEP 12: Addestramento XGBoost ====================================
+    print("\n--- Addestramento XGBoost ---")
+    xgb_model = XGBoostModel(model_dir="model")
+    xgb_model.train(
+        X_train=X_train,
+        y_train=y_train,
+        X_val=X_val,
+        y_val=y_val,
+        early_stopping_rounds=10,
+        n_estimators=100, # Esempio di iperparametro
+        learning_rate=0.1,
+        max_depth=6
+        # scale_pos_weight viene calcolato automaticamente in train()
+    )
+    xgb_model.save_model()
+
+    # Predizioni XGBoost
+    y_prob_xgb = xgb_model.predict(X_val)
+    y_pred_xgb = xgb_model.predict_classes(X_val)
+
+    # --- STEP 13: Valutazione XGBoost (Test Set) ============================
+    print("\n🔍 Valutazione XGBoost (Test Set):")
+    evaluator_xgb = ModelEvaluator(
+        y_true=y_val,
+        y_pred_proba=y_prob_xgb,
+        y_pred_class=y_pred_xgb,
+        model_name="XGBoost"
+    )
+    metrics_xgb = evaluator_xgb.evaluate() # Ottieni i risultati per il confronto
+
+    # --- STEP 14: Cross-Validation XGBoost (su Train Set) ===================
+    print("\n🔍 Cross-Validation XGBoost (Train Set):")
+    cv_xgb = CrossValidator(model=xgb_model.model, cv=5, scoring=['accuracy', 'roc_auc'])
+    cv_xgb.validate(X_train, y_train)
+    cv_results_xgb = cv_xgb.get_mean_test_scores()
+    print(f"Mean CV Accuracy: {cv_results_xgb['accuracy']:.4f}, Mean CV AUC: {cv_results_xgb['roc_auc']:.4f}")
+
+
+    # --- STEP 15: Confronto Finale Modelli (Test Set) =======================
+    print("\n--- Confronto Finale Modelli (Test Set) ---")
+    print(f"Logistic Regression - Accuracy: {metrics_lr['accuracy']:.4f}, AUC: {metrics_lr['auc_roc']:.4f}")
+    print(f"Keras Neural Network - Accuracy: {metrics_keras['accuracy']:.4f}, AUC: {metrics_keras['auc_roc']:.4f}")
+    print(f"XGBoost - Accuracy: {metrics_xgb['accuracy']:.4f}, AUC: {metrics_xgb['auc_roc']:.4f}")
+
+
+    print("\n🏁 Tutte le valutazioni e confronti completati!")
 
 
 if __name__ == "__main__":
