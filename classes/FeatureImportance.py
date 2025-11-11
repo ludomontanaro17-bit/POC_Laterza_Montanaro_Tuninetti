@@ -14,7 +14,7 @@ class FeatureImportanceAnalyzer:
         os.makedirs(fig_dir, exist_ok=True)
 
     def analyze_logistic_regression_importance(self, model, feature_names, X_val, y_val):
-        """Analizza l'importanza delle feature per Logistic Regression."""
+        """Analizza l'importanza delle feature per Logistic Regression..."""
         if hasattr(model, 'coef_'):
             coefficients = model.coef_[0]
             importance_df = pd.DataFrame({

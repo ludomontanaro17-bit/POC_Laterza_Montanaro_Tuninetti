@@ -274,7 +274,7 @@ def main():
     print("\n🏁 Tutte le valutazioni e confronti completati!")
 
     # --- STEP 16: Analisi Importanza Features ===============================
-    print("\n--- Analisi Importanza Features ---")
+    print("\n--- Analisi Importanza Features ----")
     
     # Inizializza l'analizzatore
     feature_analyzer = FeatureImportanceAnalyzer(model_dir=model_dir, fig_dir=fig_dir)
