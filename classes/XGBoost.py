@@ -19,26 +19,27 @@ class XGBoostModel:
         self.eval_metric = eval_metric
         self.use_label_encoder = use_label_encoder
         self.model_dir = model_dir
+        # Rimuovi early_stopping_rounds dal costruttore
         self.model = xgb.XGBClassifier(
             objective=self.objective,
             eval_metric=self.eval_metric,
             use_label_encoder=self.use_label_encoder,
             # Potresti voler impostare altri iperparametri di base qui
-            # n_estimators=100,
+            # n_estimators=100, # Ad esempio, imposta un numero fisso di alberi
             # learning_rate=0.1,
             # max_depth=6,
         )
         # Assicura che la cartella per il modello esista
         os.makedirs(self.model_dir, exist_ok=True)
 
-    def train(self, X_train, y_train, X_val=None, y_val=None, early_stopping_rounds=10, **xgb_params):
+    def train(self, X_train, y_train, X_val=None, y_val=None, **xgb_params):
         """
         Addestra il modello XGBoost.
 
         Args:
             X_train, y_train: Dati di training.
             X_val, y_val: Dati di validazione per l'early stopping (opzionale).
-            early_stopping_rounds (int): Rounds senza miglioramento prima di fermarsi.
+                         ATTENZIONE: Questo parametro è ora ignorato.
             **xgb_params: Altri parametri specifici di XGBoost (es. n_estimators, learning_rate, max_depth, scale_pos_weight).
                          Questi sovrascrivono i valori di default del modello.
         """
@@ -52,23 +53,21 @@ class XGBoostModel:
         xgb_params['scale_pos_weight'] = scale_pos_weight # Aggiungi il peso calcolato ai parametri
 
         # Aggiorna i parametri del modello con quelli forniti
+        # Attenzione: Se X_val e y_val sono forniti, ma non si vuole usare l'early stopping,
+        # non devono essere passati a fit() come eval_set.
+        # Rimuoviamo eventuali parametri specifici di early stopping dai parametri aggiuntivi se presenti
+        xgb_params.pop('early_stopping_rounds', None) # Rimuove il parametro se presente
+        xgb_params.pop('eval_set', None) # Rimuove eval_set se accidentalmente fornito
+        xgb_params.pop('eval_names', None) # Rimuove eval_names se accidentalmente fornito
+
         self.model.set_params(**xgb_params)
 
-        # Prepara eval_set per l'early stopping e la valutazione
-        # eval_set è una lista di tuple (X, y) per la valutazione durante il training
-        eval_set = [(X_train, y_train)]
-        if X_val is not None and y_val is not None:
-            eval_set.append((X_val, y_val))
-
-        print("Inizio addestramento del modello XGBoost...")
-        # Addestra il modello
-        # Usa eval_set invece di eval_set + eval_names
-        # early_stopping_rounds è un parametro diretto di fit() per XGBClassifier
+        # Addestra il modello *senza* specificare eval_set o early_stopping_rounds
+        print("Inizio addestramento del modello XGBoost (senza early stopping)...")
         self.model.fit(
             X_train, y_train,
-            eval_set=eval_set,
-            # eval_names=eval_names, # Rimuovi questa riga
-            early_stopping_rounds=early_stopping_rounds,
+            # eval_set=eval_set, # Non usato
+            # early_stopping_rounds=early_stopping_rounds, # Non usato
             verbose=True # Mostra la progressione del training
         )
         print("Addestramento completato.")
@@ -125,9 +124,9 @@ class XGBoostModel:
         else:
             print(f"Errore: Il file {filepath} non esiste.")
 
-# Esempio di utilizzo (opzionale, utile per testare la classe separatamente)
+# Esempio di utilizzo (opzionale)
 # if __name__ == "__main__":
 #     # Questo richiede dati X_train, y_train, X_val, y_val preprocessati
 #     # xgb_model = XGBoostModel()
-#     # xgb_model.train(X_train, y_train, X_val, y_val)
+#     # xgb_model.train(X_train, y_train) # Senza X_val/y_val o con X_val/y_val ora ignorati per early stopping
 #     pass

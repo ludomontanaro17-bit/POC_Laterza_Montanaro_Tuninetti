@@ -228,7 +228,6 @@ def main():
         y_train=y_train,
         X_val=X_val,
         y_val=y_val,
-        early_stopping_rounds=10,
         n_estimators=100, # Esempio di iperparametro
         learning_rate=0.1,
         max_depth=6
