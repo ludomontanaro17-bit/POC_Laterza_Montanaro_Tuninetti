@@ -101,36 +101,78 @@ class API:
     def _predict_individual_models(self, features):
         """Esegue predizioni con tutti i modelli individualmente."""
         predictions = {}
-        
+
         try:
-            # Applica scaler se disponibile
+            print(f"🔍 Input features shape: {features.shape}")
+
+            # Applica scaler solo alle feature numeriche specifiche
             if self.scaler:
-                features_scaled = self.scaler.transform(features)
+                # Definisci le colonne che sono state scalate durante il training
+                scaler_columns = ['ApplicantIncome', 'CoapplicantIncome', 'LoanAmount',
+                                  'TotalIncome', 'LoanAmount_to_Income']
+
+                # Indici di queste colonne nell'array delle feature
+                feature_indices = []
+                for col in scaler_columns:
+                    if col in self.expected_features:
+                        feature_indices.append(self.expected_features.index(col))
+
+                print(f"🔍 Scaling columns indices: {feature_indices}")
+
+                # Crea una copia delle feature
+                features_processed = features.copy()
+
+                # Applica lo scaler solo alle colonne specifiche
+                if feature_indices:
+                    features_to_scale = features[:, feature_indices]
+                    scaled_features = self.scaler.transform(features_to_scale)
+                    # Sostituisci le feature originali con quelle scalate
+                    for i, idx in enumerate(feature_indices):
+                        features_processed[0, idx] = scaled_features[0, i]
+
+                    print(f"✅ Applied scaler to {len(feature_indices)} numerical features")
             else:
-                features_scaled = features
+                features_processed = features
+
+            print(f"🔍 Final features shape: {features_processed.shape}")
 
             # Predizione Keras
             if 'keras' in self.models:
-                keras_pred = self.models['keras'].predict(features_scaled)
-                # Per classificazione binaria, prendi la probabilità della classe positiva
+                keras_pred = self.models['keras'].predict(features_processed, verbose=0)
+                print(f"🔍 Keras raw prediction: {keras_pred}")
                 if keras_pred.shape[1] == 2:
-                    predictions['keras'] = keras_pred[0][1]  # Probabilità classe 1
+                    predictions['keras'] = float(keras_pred[0][1])
                 else:
-                    predictions['keras'] = keras_pred[0][0]
-            
+                    predictions['keras'] = float(keras_pred[0][0])
+                print(f"✅ Keras probability: {predictions['keras']}")
+
             # Predizione Logistic Regression
             if 'logreg' in self.models:
-                logreg_pred = self.models['logreg'].predict_proba(features_scaled)
-                predictions['logreg'] = logreg_pred[0][1]  # Probabilità classe 1
-            
+                logreg_pred = self.models['logreg'].predict_proba(features_processed)
+                print(f"🔍 Logistic Regression raw prediction: {logreg_pred}")
+                predictions['logreg'] = float(logreg_pred[0][1])
+                print(f"✅ Logistic Regression probability: {predictions['logreg']}")
+
             # Predizione XGBoost
             if 'xgboost' in self.models:
-                xgb_pred = self.models['xgboost'].predict_proba(features_scaled)
-                predictions['xgboost'] = xgb_pred[0][1]  # Probabilità classe 1
-                
+                if hasattr(self.models['xgboost'], 'predict_proba'):
+                    xgb_pred = self.models['xgboost'].predict_proba(features_processed)
+                    print(f"🔍 XGBoost (sklearn) raw prediction: {xgb_pred}")
+                    predictions['xgboost'] = float(xgb_pred[0][1])
+                else:
+                    dmatrix = xgb.DMatrix(features_processed)
+                    raw_pred = self.models['xgboost'].predict(dmatrix)
+                    print(f"🔍 XGBoost (native) raw prediction: {raw_pred}")
+                    from scipy.special import expit
+                    predictions['xgboost'] = float(expit(raw_pred[0]))
+
+                print(f"✅ XGBoost probability: {predictions['xgboost']}")
+
         except Exception as e:
             print(f"❌ Errore nelle predizioni individuali: {e}")
-            
+            import traceback
+            traceback.print_exc()
+
         return predictions
 
     def _soft_voting(self, individual_predictions):
