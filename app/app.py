@@ -6,3 +6,4 @@ if __name__ == "__main__":
         scaler_path="../model/scaler.pkl"
     )
     api.run()
+

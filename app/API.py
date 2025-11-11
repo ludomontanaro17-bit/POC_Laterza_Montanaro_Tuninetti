@@ -3,6 +3,8 @@ from tensorflow.keras.models import load_model
 import numpy as np
 import joblib
 import os
+from flask import render_template
+from flask import send_from_directory
 
 class API:
     def __init__(self, model_path="model/keras_model.h5", scaler_path="model/scaler.pkl"):
@@ -99,11 +101,17 @@ class API:
                 "probabilities": prediction.tolist()[0],
                 "expected_features": self.expected_features
             })
+        @self.app.route("/ui", methods=["GET"])
+        def serve_ui():
+            return render_template("index.html")
 
+        @self.app.route("/static/<path:path>")
+        def serve_static(path):
+            return send_from_directory('static', path)
+        
     # ====== AVVIO SERVER ======
     def run(self, host="0.0.0.0", port=5000, debug=True):
         self.app.run(host=host, port=port, debug=debug)
-
 
 
 
