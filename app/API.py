@@ -1,18 +1,27 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template, send_from_directory
 from tensorflow.keras.models import load_model
 import numpy as np
 import joblib
 import os
-from flask import render_template
-from flask import send_from_directory
+from sklearn.linear_model import LogisticRegression
+import xgboost as xgb
 
 class API:
-    def __init__(self, model_path="model/keras_model.h5", scaler_path="model/scaler.pkl"):
-        """Inizializza il server Flask e carica modello, scaler e feature attese."""
+    def __init__(self, model_paths=None, scaler_path="model/scaler.pkl"):
+        """Inizializza il server Flask e carica tutti i modelli."""
         self.app = Flask(__name__)
-        self.model_path = model_path
+        
+        # Paths di default per i modelli
+        if model_paths is None:
+            model_paths = {
+                'keras': "model/keras_model.h5",
+                'logreg': "model/logistic_regression_model.pkl", 
+                'xgboost': "model/xgboost_model.json"
+            }
+        
+        self.model_paths = model_paths
         self.scaler_path = scaler_path
-        self.model = None
+        self.models = {}
         self.scaler = None
 
         # 🔹 Le feature effettive usate nel training (ordine corretto)
@@ -36,20 +45,46 @@ class API:
             'Property_Area_Urban'
         ]
 
+        # Pesi per il soft voting (basati sulle performance)
+        self.model_weights = {
+            'keras': 0.4,
+            'xgboost': 0.35,
+            'logreg': 0.25
+        }
+
         # Caricamento automatico all'avvio
-        self._load_model()
+        self._load_all_models()
         self._load_scaler()
 
         # Registrazione endpoints
         self._register_routes()
 
-    # ====== METODI INTERNI ======
-    def _load_model(self):
-        """Carica il modello Keras."""
-        if not os.path.exists(self.model_path):
-            raise FileNotFoundError(f"❌ Modello non trovato in: {self.model_path}")
-        self.model = load_model(self.model_path)
-        print("✅ Modello Keras caricato con successo")
+    def _load_all_models(self):
+        """Carica tutti i modelli."""
+        try:
+            # Carica modello Keras
+            if os.path.exists(self.model_paths['keras']):
+                self.models['keras'] = load_model(self.model_paths['keras'])
+                print("✅ Modello Keras caricato con successo")
+            else:
+                print("⚠️ Modello Keras non trovato")
+            
+            # Carica modello Logistic Regression
+            if os.path.exists(self.model_paths['logreg']):
+                self.models['logreg'] = joblib.load(self.model_paths['logreg'])
+                print("✅ Modello Logistic Regression caricato con successo")
+            else:
+                print("⚠️ Modello Logistic Regression non trovato")
+            
+            # Carica modello XGBoost
+            if os.path.exists(self.model_paths['xgboost']):
+                self.models['xgboost'] = joblib.load(self.model_paths['xgboost'])
+                print("✅ Modello XGBoost caricato con successo")
+            else:
+                print("⚠️ Modello XGBoost non trovato")
+                
+        except Exception as e:
+            print(f"❌ Errore nel caricamento dei modelli: {e}")
 
     def _load_scaler(self):
         """Carica lo scaler salvato con joblib."""
@@ -59,14 +94,84 @@ class API:
         else:
             print("⚠️ Nessuno scaler trovato — gli input devono essere già normalizzati")
 
+    def _predict_individual_models(self, features):
+        """Esegue predizioni con tutti i modelli individualmente."""
+        predictions = {}
+        
+        try:
+            # Applica scaler se disponibile
+            if self.scaler:
+                features_scaled = self.scaler.transform(features)
+            else:
+                features_scaled = features
+
+            # Predizione Keras
+            if 'keras' in self.models:
+                keras_pred = self.models['keras'].predict(features_scaled)
+                # Per classificazione binaria, prendi la probabilità della classe positiva
+                if keras_pred.shape[1] == 2:
+                    predictions['keras'] = keras_pred[0][1]  # Probabilità classe 1
+                else:
+                    predictions['keras'] = keras_pred[0][0]
+            
+            # Predizione Logistic Regression
+            if 'logreg' in self.models:
+                logreg_pred = self.models['logreg'].predict_proba(features_scaled)
+                predictions['logreg'] = logreg_pred[0][1]  # Probabilità classe 1
+            
+            # Predizione XGBoost
+            if 'xgboost' in self.models:
+                xgb_pred = self.models['xgboost'].predict_proba(features_scaled)
+                predictions['xgboost'] = xgb_pred[0][1]  # Probabilità classe 1
+                
+        except Exception as e:
+            print(f"❌ Errore nelle predizioni individuali: {e}")
+            
+        return predictions
+
+    def _soft_voting(self, individual_predictions):
+        """Calcola la predizione finale tramite soft voting pesato."""
+        total_weight = 0
+        weighted_sum = 0
+        voting_details = []
+        
+        for model_name, prob in individual_predictions.items():
+            if model_name in self.model_weights:
+                weight = self.model_weights[model_name]
+                weighted_sum += prob * weight
+                total_weight += weight
+                
+                voting_details.append({
+                    'model': model_name,
+                    'probability': float(prob),
+                    'weight': weight,
+                    'weighted_prob': float(prob * weight)
+                })
+        
+        if total_weight > 0:
+            final_probability = weighted_sum / total_weight
+        else:
+            final_probability = sum(individual_predictions.values()) / len(individual_predictions)
+        
+        final_prediction = 1 if final_probability > 0.5 else 0
+        
+        return {
+            'final_prediction': final_prediction,
+            'final_probability': float(final_probability),
+            'voting_details': voting_details,
+            'individual_predictions': individual_predictions
+        }
+
     def _register_routes(self):
-        """Definisce gli endpoint dell’API."""
+        """Definisce gli endpoint dell'API."""
 
         @self.app.route("/", methods=["GET"])
         def home():
             return jsonify({
-                "message": "API Keras per classificazione di Loan",
-                "expected_features": self.expected_features
+                "message": "API Ensemble per classificazione di Loan",
+                "expected_features": self.expected_features,
+                "available_models": list(self.models.keys()),
+                "model_weights": self.model_weights
             })
 
         @self.app.route("/predict", methods=["POST"])
@@ -88,19 +193,26 @@ class API:
                     "expected_order": self.expected_features
                 }), 400
 
-            # Applica scaler se disponibile
-            if self.scaler:
-                features = self.scaler.transform(features)
+            # Predizioni individuali
+            individual_predictions = self._predict_individual_models(features)
+            
+            if not individual_predictions:
+                return jsonify({
+                    "error": "Nessun modello disponibile per la predizione"
+                }), 500
 
-            # Predizione
-            prediction = self.model.predict(features)
-            predicted_class = int(np.argmax(prediction, axis=1)[0])
+            # Soft voting
+            ensemble_result = self._soft_voting(individual_predictions)
 
             return jsonify({
-                "predicted_class": predicted_class,
-                "probabilities": prediction.tolist()[0],
+                "final_prediction": ensemble_result['final_prediction'],
+                "final_probability": ensemble_result['final_probability'],
+                "ensemble_details": ensemble_result['voting_details'],
+                "individual_predictions": ensemble_result['individual_predictions'],
+                "model_weights": self.model_weights,
                 "expected_features": self.expected_features
             })
+
         @self.app.route("/ui", methods=["GET"])
         def serve_ui():
             return render_template("index.html")
@@ -108,13 +220,19 @@ class API:
         @self.app.route("/static/<path:path>")
         def serve_static(path):
             return send_from_directory('static', path)
-        
-    # ====== AVVIO SERVER ======
+
+        @self.app.route("/models/status", methods=["GET"])
+        def models_status():
+            """Endpoint per verificare lo stato dei modelli."""
+            models_status = {}
+            for model_name, model in self.models.items():
+                models_status[model_name] = "loaded" if model is not None else "not loaded"
+            
+            return jsonify({
+                "models": models_status,
+                "weights": self.model_weights,
+                "scaler_loaded": self.scaler is not None
+            })
+
     def run(self, host="0.0.0.0", port=5000, debug=True):
         self.app.run(host=host, port=port, debug=debug)
-
-
-
-if __name__ == "__main__":
-    api = API()
-    api.run(host="0.0.0.0", port=5000)
