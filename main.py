@@ -54,7 +54,6 @@ def main():
     prep.display_missing_values()
 
     # --- Distribuzioni e Boxplot ---
-    ## Target
     plt.figure(figsize=(6, 4))
     sns.countplot(x=prep.y, palette="viridis")
     plt.title("Distribuzione Loan Status")
@@ -67,29 +66,37 @@ def main():
     for col in categorical_cols:
         if col in df_train.columns:
             plt.figure(figsize=(6, 4))
-            sns.countplot(x=col, data=df_train, palette="mako", order=df_train[col].value_counts().index)
+            sns.countplot(
+                x=col, data=df_train, palette="mako",
+                order=df_train[col].value_counts().index
+            )
             plt.title(f"Distribuzione di {col}")
             plt.tight_layout()
             plt.savefig(os.path.join(fig_dir, f"{col.lower()}_distribution.png"), dpi=150)
             plt.close()
 
-    ## Numeric + TotalIncome
-    for col in ['ApplicantIncome', 'CoapplicantIncome', 'LoanAmount']:
+## Numeric + TotalIncome
+    numeric_cols = ['ApplicantIncome', 'CoapplicantIncome', 'LoanAmount']
+    if 'TotalIncome' in df_train.columns:
+        numeric_cols.append('TotalIncome')
+
+    for col in numeric_cols:
         if col in df_train.columns:
+            # Istogramma
             plt.figure(figsize=(6, 4))
-            sns.boxplot(y=df_train[col], color="skyblue")
-            plt.title(f"Distribuzione di {col}")
+            sns.histplot(df_train[col], bins=30, kde=False, color="skyblue")
+            plt.title(f"Istogramma di {col}")
             plt.tight_layout()
-            plt.savefig(os.path.join(fig_dir, f"{col.lower()}_boxplot.png"), dpi=150)
+            plt.savefig(os.path.join(fig_dir, f"{col.lower()}_histogram.png"), dpi=150)
             plt.close()
 
-    if 'TotalIncome' in df_train.columns:
-        plt.figure(figsize=(6, 4))
-        sns.boxplot(y=df_train['TotalIncome'], color="mediumseagreen")
-        plt.title("Distribuzione di TotalIncome")
-        plt.tight_layout()
-        plt.savefig(os.path.join(fig_dir, "totalincome_boxplot.png"), dpi=150)
-        plt.close()
+            # Swarm plot (ogni punto)
+            plt.figure(figsize=(6, 4))
+            sns.swarmplot(y=df_train[col], color="mediumseagreen", size=3)
+            plt.title(f"Swarm plot di {col}")
+            plt.tight_layout()
+            plt.savefig(os.path.join(fig_dir, f"{col.lower()}_swarm.png"), dpi=150)
+            plt.close()
 
     # --- Mappa dei valori mancanti ---
     plt.figure(figsize=(10, 5))
@@ -126,7 +133,8 @@ def main():
     X_train, X_val, y_train, y_val = prep.split_data(df_preprocessed, test_size=0.2, random_state=42)
     print("✅ Train-test split completato.")
     print(f"Train size: {len(X_train)}, Validation size: {len(X_val)}")
-
+    print(X_train.columns) 
+    """
     # === Step 6: Salvataggio oggetti utili ==================================
     joblib.dump(df_preprocessed.drop(columns=['Loan_Status']).columns.tolist(),
                 os.path.join(model_dir, "final_columns.pkl"))

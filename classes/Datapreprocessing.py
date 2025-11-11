@@ -138,7 +138,7 @@ class DataPreprocessing:
         - salvataggio della mappatura del target e dello scaler
         """
         df = self.dataframe.copy()
-
+        df.drop(columns=['Loan_ID'], inplace=True)
         # --- Standard fixes ---
         if 'Dependents' in df.columns:
             df['Dependents'] = df['Dependents'].replace('3+', '3')
