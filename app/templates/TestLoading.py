@@ -3,8 +3,7 @@
 import joblib
 import os
 import xgboost as xgb
-from tensorflow import keras # Per caricare il modello Keras
-from sklearn.linear_model import LogisticRegression # Per caricare il modello LogisticRegression
+from tensorflow import keras
 
 model_dir = "model"
 

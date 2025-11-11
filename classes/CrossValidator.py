@@ -1,10 +1,5 @@
-import numpy as np
 import pandas as pd
 from sklearn.model_selection import cross_validate, StratifiedKFold
-from sklearn.metrics import make_scorer, accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
-from sklearn.linear_model import LogisticRegression
-from scikeras.wrappers import KerasClassifier
-from classes.KerasModel import KerasModel # Assumendo che la tua classe KerasModel esista
 
 class CrossValidator:
     def __init__(self, model, cv=5, scoring=None, random_state=42):
