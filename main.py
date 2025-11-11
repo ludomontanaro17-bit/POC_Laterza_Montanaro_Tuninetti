@@ -7,7 +7,7 @@ from classes.Datapreprocessing import DataPreprocessing
 from classes.KaggleLoader import KaggleLoader
 from classes.LogisticRegression import LogisticRegressionModel
 from classes.ModelEvaluator import ModelEvaluator
-from classes.KerasModel import KerasModel
+#from classes.KerasModel import KerasModel
 
 
 def main():
@@ -49,7 +49,6 @@ def main():
     prep.display_missing_values()
 
     # --- Distribuzioni e Boxplot ---
-    ## Target
     plt.figure(figsize=(6, 4))
     sns.countplot(x=prep.y, palette="viridis")
     plt.title("Distribuzione Loan Status")
@@ -62,29 +61,37 @@ def main():
     for col in categorical_cols:
         if col in df_train.columns:
             plt.figure(figsize=(6, 4))
-            sns.countplot(x=col, data=df_train, palette="mako", order=df_train[col].value_counts().index)
+            sns.countplot(
+                x=col, data=df_train, palette="mako",
+                order=df_train[col].value_counts().index
+            )
             plt.title(f"Distribuzione di {col}")
             plt.tight_layout()
             plt.savefig(os.path.join(fig_dir, f"{col.lower()}_distribution.png"), dpi=150)
             plt.close()
 
-    ## Numeric + TotalIncome
-    for col in ['ApplicantIncome', 'CoapplicantIncome', 'LoanAmount']:
+## Numeric + TotalIncome
+    numeric_cols = ['ApplicantIncome', 'CoapplicantIncome', 'LoanAmount']
+    if 'TotalIncome' in df_train.columns:
+        numeric_cols.append('TotalIncome')
+
+    for col in numeric_cols:
         if col in df_train.columns:
+            # Istogramma
             plt.figure(figsize=(6, 4))
-            sns.boxplot(y=df_train[col], color="skyblue")
-            plt.title(f"Distribuzione di {col}")
+            sns.histplot(df_train[col], bins=30, kde=False, color="skyblue")
+            plt.title(f"Istogramma di {col}")
             plt.tight_layout()
-            plt.savefig(os.path.join(fig_dir, f"{col.lower()}_boxplot.png"), dpi=150)
+            plt.savefig(os.path.join(fig_dir, f"{col.lower()}_histogram.png"), dpi=150)
             plt.close()
 
-    if 'TotalIncome' in df_train.columns:
-        plt.figure(figsize=(6, 4))
-        sns.boxplot(y=df_train['TotalIncome'], color="mediumseagreen")
-        plt.title("Distribuzione di TotalIncome")
-        plt.tight_layout()
-        plt.savefig(os.path.join(fig_dir, "totalincome_boxplot.png"), dpi=150)
-        plt.close()
+            # Swarm plot (ogni punto)
+            plt.figure(figsize=(6, 4))
+            sns.swarmplot(y=df_train[col], color="mediumseagreen", size=3)
+            plt.title(f"Swarm plot di {col}")
+            plt.tight_layout()
+            plt.savefig(os.path.join(fig_dir, f"{col.lower()}_swarm.png"), dpi=150)
+            plt.close()
 
     # --- Mappa dei valori mancanti ---
     plt.figure(figsize=(10, 5))
@@ -154,6 +161,7 @@ def main():
     )
     evaluator_lr.evaluate()
 
+    """
     # === STEP 8: Addestramento Rete Neurale Keras ===========================
     keras_model = KerasModel(input_dim=X_train.shape[1], model_dir="model")
     keras_model.train(
@@ -182,7 +190,7 @@ def main():
     evaluator_nn.evaluate()
 
     print("\n🏁 Tutte le valutazioni completate!")
-
+    """
 
 if __name__ == "__main__":
     main()
