@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loan Approval Predictor - Ensemble AI</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .feature-section {
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-left: 4px solid var(--secondary-color);
+        }
+
+        .result-section {
+            display: none;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 15px;
+            padding: 30px;
+            margin-top: 30px;
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .probability-bar-container {
+            background: #ecf0f1;
+            border-radius: 10px;
+            height: 35px;
+            margin: 15px 0;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .probability-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--danger-color), var(--warning-color), var(--success-color));
+            border-radius: 10px;
+            transition: width 1.5s ease-in-out;
+            position: relative;
+        }
+
+        .probability-value {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-weight: bold;
+            color: #2c3e50;
+            text-shadow: 1px 1px 2px rgba(255,255,255,0.8);
+        }
+
+        .model-card {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-left: 4px solid var(--secondary-color);
+            transition: transform 0.2s ease;
+        }
+
+        .model-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .voting-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .nav-tabs .nav-link {
+            border: none;
+            color: var(--primary-color);
+            font-weight: 500;
+        }
+
+        .nav-tabs .nav-link.active {
+            background: var(--secondary-color);
+            color: white;
+            border-radius: 8px;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+
+        .feature-input {
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .feature-input:focus {
+            border-color: var(--secondary-color);
+            box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
+        }
+
+        .result-approved {
+            border-color: var(--success-color);
+            background: linear-gradient(135deg, rgba(39, 174, 96, 0.1), rgba(255, 255, 255, 0.9));
+        }
+
+        .result-rejected {
+            border-color: var(--danger-color);
+            background: linear-gradient(135deg, rgba(231, 76, 60, 0.1), rgba(255, 255, 255, 0.9));
+        }
+
+        .confidence-badge {
+            font-size: 0.8em;
+            padding: 4px 8px;
+            border-radius: 12px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="text-center text-white">
+            <div class="spinner-border text-light mb-3" role="status"></div>
+            <h4>Analizzando i dati con l'Ensemble AI...</h4>
+            <p class="mb-0">Stiamo processando con 3 modelli di machine learning</p>
+        </div>
+    </div>
+
+    <div class="container py-5">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12 text-center">
+                <h1 class="display-4 text-white mb-3">
+                    <i class="fas fa-robot me-3"></i>Loan Approval Predictor
+                </h1>
+                <p class="lead text-white">Sistema di Intelligenza Artificiale Ensemble per la previsione di approvazione prestiti</p>
+            </div>
+        </div>
+
+        <!-- Main Card -->
+        <div class="glass-card p-4">
+            <!-- Form Section -->
+            <form id="predictionForm">
+                <!-- Informazioni Personali -->
+                <div class="feature-section">
+                    <h3 class="mb-4">
+                        <i class="fas fa-user me-2"></i>Informazioni Personali
+                    </h3>
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Genere</label>
+                            <select class="form-select feature-input" name="Gender_Male" required>
+                                <option value="0">Femmina</option>
+                                <option value="1">Maschio</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Stato Civile</label>
+                            <select class="form-select feature-input" name="Married_Yes" required>
+                                <option value="0">Non Sposato</option>
+                                <option value="1">Sposato</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Istruzione</label>
+                            <select class="form-select feature-input" name="Education_Not Graduate" required>
+                                <option value="0">Laureato</option>
+                                <option value="1">Non Laureato</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Lavoratore Autonomo</label>
+                            <select class="form-select feature-input" name="Self_Employed_Yes" required>
+                                <option value="0">Dipendente</option>
+                                <option value="1">Autonomo</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Informazioni Finanziarie -->
+                <div class="feature-section">
+                    <h3 class="mb-4">
+                        <i class="fas fa-chart-line me-2"></i>Informazioni Finanziarie
+                    </h3>
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Reddito Richiedente (€)</label>
+                            <input type="number" class="form-control feature-input" id="ApplicantIncome" 
+                                   min="0" step="100" placeholder="3000" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Reddito Co-richiedente (€)</label>
+                            <input type="number" class="form-control feature-input" id="CoapplicantIncome" 
+                                   min="0" step="100" placeholder="1500" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Importo Prestito (€)</label>
+                            <input type="number" class="form-control feature-input" name="LoanAmount" 
+                                   min="0" step="1000" placeholder="150000" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Durata Prestito (mesi)</label>
+                            <input type="number" class="form-control feature-input" name="Loan_Amount_Term" 
+                                   min="0" step="12" placeholder="360" required>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Informazioni Aggiuntive -->
+                <div class="feature-section">
+                    <h3 class="mb-4">
+                        <i class="fas fa-info-circle me-2"></i>Informazioni Aggiuntive
+                    </h3>
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Numero Dipendenti</label>
+                            <input type="number" class="form-control feature-input" name="Dependents" 
+                                   min="0" max="10" placeholder="2" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Storia Creditizia</label>
+                            <select class="form-select feature-input" name="Credit_History" required>
+                                <option value="0">Scarsa</option>
+                                <option value="1" selected>Buona</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold">Area Proprietà</label>
+                            <select class="form-select feature-input" name="Property_Area" required>
+                                <option value="Rural">Rurale</option>
+                                <option value="Semiurban" selected>Semi-Urbana</option>
+                                <option value="Urban">Urbana</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6 class="card-title">Reddito Totale</h6>
+                                    <h4 id="totalIncomeDisplay" class="text-primary mb-0">€0</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="text-center mt-4">
+                    <button type="submit" class="btn btn-primary btn-lg px-5 py-3">
+                        <i class="fas fa-brain me-2"></i>ANALIZZA CON ENSEMBLE AI
+                    </button>
+                </div>
+            </form>
+
+            <!-- Results Section -->
+            <div id="resultSection" class="result-section">
+                <!-- Main Result -->
+                <div class="text-center mb-4">
+                    <h2 id="predictionResult" class="display-5 fw-bold mb-3"></h2>
+                    <div class="probability-bar-container">
+                        <div class="probability-bar" id="probabilityBar">
+                            <div class="probability-value" id="probabilityValue">0%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabs for Detailed Results -->
+                <ul class="nav nav-tabs mb-4" id="resultsTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="ensemble-tab" data-bs-toggle="tab" 
+                                data-bs-target="#ensemble" type="button" role="tab">
+                            <i class="fas fa-chess-queen me-2"></i>Ensemble Finale
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="models-tab" data-bs-toggle="tab" 
+                                data-bs-target="#models" type="button" role="tab">
+                            <i class="fas fa-microchip me-2"></i>Modelli Individuali
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="voting-tab" data-bs-toggle="tab" 
+                                data-bs-target="#voting" type="button" role="tab">
+                            <i class="fas fa-calculator me-2"></i>Soft Voting
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="resultsTabContent">
+                    <!-- Ensemble Tab -->
+                    <div class="tab-pane fade show active" id="ensemble" role="tabpanel">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card h-100">
+                                    <div class="card-header bg-primary text-white">
+                                        <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Probabilità Finali</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-center mb-3">
+                                            <span>Rifiutato:</span>
+                                            <span id="probRejected" class="fw-bold fs-5">0%</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span>Approvato:</span>
+                                            <span id="probApproved" class="fw-bold fs-5 text-success">0%</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card h-100">
+                                    <div class="card-header bg-info text-white">
+                                        <h5 class="mb-0"><i class="fas fa-lightbulb me-2"></i>Fattori Chiave</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="keyFactors">
+                                            <!-- Factors will be populated here -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Models Tab -->
+                    <div class="tab-pane fade" id="models" role="tabpanel">
+                        <h5 class="mb-3">Performance Modelli Individuali</h5>
+                        <div id="modelPredictions">
+                            <!-- Model predictions will be populated here -->
+                        </div>
+                    </div>
+
+                    <!-- Voting Tab -->
+                    <div class="tab-pane fade" id="voting" role="tabpanel">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <h5 class="mb-3">Dettagli Soft Voting Pesato</h5>
+                                <div id="votingDetails">
+                                    <!-- Voting details will be populated here -->
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="voting-card text-center">
+                                    <h5><i class="fas fa-balance-scale me-2"></i>Probabilità Finale</h5>
+                                    <h1 id="finalProbabilityDisplay" class="display-4 fw-bold my-3">0%</h1>
+                                    <p class="mb-0">Calcolata con soft voting pesato</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reset Button -->
+                <div class="text-center mt-4">
+                    <button id="resetBtn" class="btn btn-outline-secondary px-4">
+                        <i class="fas fa-redo me-2"></i>Nuova Analisi
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
