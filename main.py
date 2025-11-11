@@ -128,7 +128,8 @@ def main():
     X_train, X_val, y_train, y_val = prep.split_data(df_preprocessed, test_size=0.2, random_state=42)
     print("✅ Train-test split completato.")
     print(f"Train size: {len(X_train)}, Validation size: {len(X_val)}")
-
+    print(X_train.columns) 
+    """
     # === Step 6: Salvataggio oggetti utili ==================================
     joblib.dump(df_preprocessed.drop(columns=['Loan_Status']).columns.tolist(),
                 os.path.join(model_dir, "final_columns.pkl"))
@@ -161,7 +162,7 @@ def main():
     )
     evaluator_lr.evaluate()
 
-    """
+   
     # === STEP 8: Addestramento Rete Neurale Keras ===========================
     keras_model = KerasModel(input_dim=X_train.shape[1], model_dir="model")
     keras_model.train(
