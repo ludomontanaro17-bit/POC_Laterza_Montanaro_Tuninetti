@@ -7,6 +7,7 @@ import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
+
 class DataPreprocessing:
     def __init__(self, dataframe, target_column):
         """
@@ -109,9 +110,10 @@ class DataPreprocessing:
             print("\nTarget non numerico: convertilo temporaneamente a 0/1 per vedere correlazioni numeriche.")
 
     def cross_tab_credit_target(self):
-        """Cross-tab tra Credit_History e target (percentuale per riga)"""
+        """Cross-tab entre Credit_History e target (percentuale per riga)"""
         if 'Credit_History' in self.dataframe.columns:
-            ct = pd.crosstab(self.dataframe['Credit_History'], self.dataframe[self.target_column], normalize='index') * 100
+            ct = pd.crosstab(self.dataframe['Credit_History'], self.dataframe[self.target_column],
+                             normalize='index') * 100
             print("\nCross-tab Credit_History vs Loan_Status (percentuale per riga):")
             print(ct.round(2))
         else:
@@ -128,7 +130,7 @@ class DataPreprocessing:
         print("- Dependents: convertire '3+' in 3 o lasciare categoria '3+'")
 
     # --- Advanced preprocessing --------------------------------------------
-    def advanced_preprocessing(self, impute_numeric='median', encode_categoricals='onehot', create_features=True):
+    def advanced_preprocessing(self, impute_numeric='median', create_features=True):
         """
         Preprocessing avanzato:
         - imputazione valori mancanti
@@ -154,9 +156,11 @@ class DataPreprocessing:
             for c in numeric_cols:
                 df[c] = df[c].fillna(df[c].mean())
 
-        # --- Impute categoricals ---
+        # Variabili categoriche
         cat_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
         cat_cols = [c for c in cat_cols if c != self.target_column]
+
+        # --- Impute categoricals ---
         for c in cat_cols:
             if df[c].isnull().any():
                 mode_val = df[c].mode(dropna=True)
@@ -172,50 +176,58 @@ class DataPreprocessing:
                 df['TotalIncome'] = df['ApplicantIncome']
                 df.drop(['ApplicantIncome'], axis=1, inplace=True)
 
-            # LoanAmount to Income ratio
-            if 'LoanAmount' in df.columns and 'TotalIncome' in df.columns:
-                df['LoanAmount_to_Income'] = df['LoanAmount'] / (df['TotalIncome'].replace({0: np.nan}))
-                df['LoanAmount_to_Income'] = df['LoanAmount_to_Income'].fillna(0)
+            # Convertiamo l'UM di LoanAmount perché sia comparabile con gli stipendi
+            if 'LoanAmount' in df.columns:
+                df['LoanAmount'] = df['LoanAmount'] * 1000.0
 
-            # Indicatori binari
-            if 'Dependents' in df.columns:
-                df['HasDependents'] = (df['Dependents'] > 0).astype(int)
+            ## LoanAmount to Income ratio (ora entrambi in migliaia)
+            #if 'LoanAmount' in df.columns and 'TotalIncome' in df.columns:
+            #    df['LoanAmount_to_Income'] = df['LoanAmount'] / (df['TotalIncome'].replace({0: np.nan}))
+            #    df['LoanAmount_to_Income'] = df['LoanAmount_to_Income'].fillna(0)
+
+            #if 'LoanAmount_to_Income' in df.columns:
+            #    # Metti un limite superiore realistico (es. 10)
+            #    df['LoanAmount_to_Income'] = df['LoanAmount_to_Income'].clip(upper=10)
+            #    print(
+            #        f"✅ LoanAmount_to_Income limitato a max 10. Valori unici: {df['LoanAmount_to_Income'].unique()[:5]}")
+
+            if 'TotalIncome' in df.columns:
+                # Assicurati che il reddito sia almeno 1 (evita divisioni per 0)
+                df['TotalIncome'] = df['TotalIncome'].clip(lower=0.1)  # 0.1 invece di 1 perché ora è in migliaia
+
+            # Encoding di indicatori binari
+            #if 'Dependents' in df.columns:
+            #    df['HasDependents'] = (df['Dependents'] > 0).astype(int)
             if 'Married' in df.columns:
                 df['IsMarried'] = df['Married'].map({'Yes': 1, 'No': 0}).fillna(0).astype(int)
             if 'Education' in df.columns:
                 df['IsGraduate'] = df['Education'].map({'Graduate': 1, 'Not Graduate': 0}).fillna(0).astype(int)
 
-            # Income brackets
-            income_labels = {'low': 0, 'medium': 1, 'high': 2}
-            df['Income_bracket'] = pd.qcut(
-                df['TotalIncome'].rank(method='first'),
-                q=3,
-                labels=['low', 'medium', 'high']
-            ).map(income_labels).astype(int)
+            ## Income brackets
+            #income_labels = {'low': 0, 'medium': 1, 'high': 2}
+            #df['Income_bracket'] = pd.qcut(
+            #    df['TotalIncome'].rank(method='first'),
+            #    q=3,
+            #    labels=['low', 'medium', 'high']
+            #).map(income_labels).astype(int)
+#
+            ## Interaction Credit_History x IncomeHigh
+            #if 'Credit_History' in df.columns and 'Income_bracket' in df.columns:
+            #    df['Credit_x_IncomeHigh'] = ((df['Credit_History'] == 1) &
+            #                                 (df['Income_bracket'] == 2)).astype(int)  # high = 2
 
-            # Interaction Credit_History x IncomeHigh
-            if 'Credit_History' in df.columns and 'Income_bracket' in df.columns:
-                df['Credit_x_IncomeHigh'] = ((df['Credit_History'] == 1) &
-                                             (df['Income_bracket'] == 'high')).astype(int)
+        # --- Encoding OneHot ---
+        df = pd.get_dummies(df, columns=['Property_Area'], drop_first=True)
+        print("✅ One-Hot encoding applicato su 'Property_Area'")
 
-        # --- Encoding categoriali ---
-        if encode_categoricals == 'onehot':
-            df = pd.get_dummies(df, columns=cat_cols, drop_first=True)
-        elif encode_categoricals == 'label':
-            for c in cat_cols:
-                df[c] = df[c].astype('category').cat.codes
-
-        # --- Encoding variabili binarie numeriche ---
-        # (Esempio: Credit_History o altre simili)
-        binary_like = ['Credit_History']
-        for col in binary_like:
-            if col in df.columns:
-                df[col] = df[col].fillna(0).astype(int)
+        # Imputazione dei nulli di Credit History con 0 perché è una variabile importante e la banca vuole minimizzare il rischio
+        df['Credit_History'] = df['Credit_History'].fillna(0).astype(int)
 
         # --- Encoding target ---
         if df[self.target_column].dtype == 'object':
             if set(df[self.target_column].dropna().unique()) <= {'Y', 'N'}:
                 df[self.target_column] = df[self.target_column].map({'Y': 1, 'N': 0})
+                print(f"✅ Target encoded: Y→1, N→0. Distribuzione: {df[self.target_column].value_counts().to_dict()}")
             else:
                 df[self.target_column] = df[self.target_column].astype('category').cat.codes
             print(f"✅ Target '{self.target_column}' codificato in numerico: "
@@ -224,40 +236,39 @@ class DataPreprocessing:
         # --- Salvataggio mappatura target ---
         target_map_path = os.path.join("model", f"target_mapping_{self.target_column}.pkl")
         os.makedirs("model", exist_ok=True)
-        if set(df[self.target_column].unique()) <= {0, 1}:  # Caso binario
-            target_mapping = {1: 'Y', 0: 'N'}
-        else:  # Caso generale
-            original_cats = self.dataframe[self.target_column].astype('category').cat.categories.tolist()
-            target_mapping = {i: cat for i, cat in enumerate(original_cats)}
+        target_mapping = {1: 'Y', 0: 'N'}
         joblib.dump(target_mapping, target_map_path)
         print(f"💾 Mappatura target salvata in {target_map_path}")
 
         # --- Scaling numerici ---
-        scaler_cols = [c for c in ['ApplicantIncome', 'CoapplicantIncome', 'LoanAmount',
-                                   'TotalIncome', 'LoanAmount_to_Income'] if c in df.columns]
+        scaler_cols = [c for c in [ 'LoanAmount', 'TotalIncome'] if c in df.columns]
+
         if scaler_cols:
+            print(f"🔧 Scaling applicato a: {scaler_cols}")
             self.scaler.fit(df[scaler_cols])
             df[scaler_cols] = self.scaler.transform(df[scaler_cols])
             model_dir = os.path.join("model")
             os.makedirs(model_dir, exist_ok=True)
             joblib.dump(self.scaler, os.path.join(model_dir, "scaler.pkl"))
+            print(f"💾 Scaler salvato con medie: {dict(zip(scaler_cols, self.scaler.mean_.round(2)))}")
 
         print("\n✅ Preprocessing avanzato completato. Colonne finali:", df.columns.tolist())
+        print(f"📊 Shape finale: {df.shape}")
         return df
 
     # --- Utilities ----------------------------------------------------------
-    def detect_outliers(self, column):
-        """Rileva outliers usando l'IQR"""
-        if column not in self.dataframe.columns:
-            print(f"{column} non presente.")
-            return
-        s = self.dataframe[column].dropna()
-        q1, q3 = s.quantile(0.25), s.quantile(0.75)
-        iqr = q3 - q1
-        lower, upper = q1 - 1.5 * iqr, q3 + 1.5 * iqr
-        out = s[(s < lower) | (s > upper)]
-        print(f"\nOutliers rilevati in {column}: {len(out)} (limiti: {lower:.2f}, {upper:.2f})")
-        return out.index.tolist()
+    #def detect_outliers(self, column):
+    #    """Rileva outliers usando l'IQR"""
+    #    if column not in self.dataframe.columns:
+    #        print(f"{column} non presente.")
+    #        return
+    #    s = self.dataframe[column].dropna()
+    #    q1, q3 = s.quantile(0.25), s.quantile(0.75)
+    #    iqr = q3 - q1
+    #    lower, upper = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+    #    out = s[(s < lower) | (s > upper)]
+    #    print(f"\nOutliers rilevati in {column}: {len(out)} (limiti: {lower:.2f}, {upper:.2f})")
+    #    return out.index.tolist()
 
     def split_data(self, df=None, test_size=0.2, random_state=42):
         """Suddivide il dataset in train/validation set"""
@@ -269,26 +280,7 @@ class DataPreprocessing:
             X, y, test_size=test_size, random_state=random_state, stratify=y
         )
         print(f"Split: {len(X_train)} train / {len(X_val)} val")
+        print(f"Distribuzione y_train: {pd.Series(y_train).value_counts().to_dict()}")
+        print(f"Distribuzione y_val: {pd.Series(y_val).value_counts().to_dict()}")
         return X_train, X_val, y_train, y_val
 
-    def decode_target(self, y_pred):
-        """
-        Decodifica le predizioni numeriche del target nelle etichette originali.
-        - y_pred: array-like di valori numerici (0/1 o codici)
-        Restituisce un array con le etichette originali.
-        """
-        target_map_path = os.path.join("model", f"target_mapping_{self.target_column}.pkl")
-        if not os.path.exists(target_map_path):
-            raise FileNotFoundError(f"Mappatura target non trovata in {target_map_path}")
-
-        target_mapping = joblib.load(target_map_path)
-        # Invertiamo la mappatura {label: originale} -> {numerico: originale}
-        if set(y_pred) <= {0, 1}:
-            # Caso binario
-            inverse_map = target_mapping
-        else:
-            # Caso generale
-            inverse_map = target_mapping
-
-        decoded = [inverse_map.get(int(val), val) for val in y_pred]
-        return np.array(decoded)

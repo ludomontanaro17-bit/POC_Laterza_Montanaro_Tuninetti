@@ -82,25 +82,26 @@ class LoanPredictor {
         const creditXIncomeHigh = parseInt(formData.get('Credit_History')) * incomeBracket;
 
         return [
-            parseFloat(formData.get('Dependents')),      // Dependents
-            loanAmount,                                  // LoanAmount
-            parseFloat(formData.get('Loan_Amount_Term')), // Loan_Amount_Term
-            parseFloat(formData.get('Credit_History')),  // Credit_History
-            totalIncome,                                 // TotalIncome
-            loanAmountToIncome,                          // LoanAmount_to_Income
-            hasDependents,                               // HasDependents
-            isMarried,                                   // IsMarried
-            isGraduate,                                  // IsGraduate
-            incomeBracket,                               // Income_bracket
-            creditXIncomeHigh,                           // Credit_x_IncomeHigh
-            parseFloat(formData.get('Gender_Male')),     // Gender_Male
-            isMarried,                                   // Married_Yes (duplicato per compatibilità)
-            parseInt(formData.get('Education_Not Graduate')), // Education_Not Graduate
-            parseInt(formData.get('Self_Employed_Yes')), // Self_Employed_Yes
-            propertyAreaSemiurban,                       // Property_Area_Semiurban
-            propertyAreaUrban                            // Property_Area_Urban
+            parseFloat(formData.get('Dependents')),         // 00 Dependents
+            loanAmount,                                     // 01 LoanAmount
+            parseFloat(formData.get('Loan_Amount_Term')),   // 02 Loan_Amount_Term
+            parseFloat(formData.get('Credit_History')),     // 03 Credit_History
+            totalIncome,                                    // 06 TotalIncome
+            loanAmountToIncome,                             // 07 LoanAmount_to_Income
+            hasDependents,                                  // 08 HasDependents
+            isMarried,                                      // 09 IsMarried
+            isGraduate,                                     // 10 IsGraduate
+            incomeBracket,                                  // 11 Income_bracket
+            creditXIncomeHigh,                              // 12 Credit_x_IncomeHigh
+            parseFloat(formData.get('Gender_Male')),        // 13 Gender_Male
+            isMarried,                                      // 14 Married_Yes (duplicato)
+            parseInt(formData.get('Education_Not Graduate')),// 15 Education_Not Graduate
+            parseInt(formData.get('Self_Employed_Yes')),    // 16 Self_Employed_Yes
+            propertyAreaSemiurban,                          // 17 Property_Area_Semiurban
+            propertyAreaUrban                               // 18 Property_Area_Urban
         ];
     }
+
 
     async makePrediction(features) {
         const response = await fetch('/predict', {

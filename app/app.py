@@ -6,7 +6,7 @@ if __name__ == "__main__":
     model_paths = {
         'keras': "../model/keras_model.h5",
         'logreg': "../model/logistic_regression_model.pkl",
-        'xgboost': "../model/xgboost_model.json"  # Cambia l'estensione se necessario
+        'xgboost': "../model/xgboost_model.pkl"  # Cambia l'estensione se necessario
     }
 
     # Verifica che i file esistano

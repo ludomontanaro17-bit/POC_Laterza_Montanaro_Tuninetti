@@ -5,128 +5,105 @@ import os
 import joblib
 
 class XGBoostModel:
-    def __init__(self, objective='binary:logistic', eval_metric='auc', use_label_encoder=False, model_dir="model"):
+    def __init__(self,
+                 objective='binary:logistic',
+                 eval_metric='auc',
+                 use_label_encoder=False,
+                 model_dir="model"):
         """
-        Inizializza il wrapper per il modello XGBoost.
-
-        Args:
-            objective (str): Obiettivo del modello (default 'binary:logistic' per classificazione binaria).
-            eval_metric (str or list): Metrica(i) da usare per la valutazione durante il training.
-            use_label_encoder (bool): Disabilita l'encoder di XGBoost per le classi (raccomandato).
-            model_dir (str): Directory dove salvare il modello.
+        Wrapper per il modello XGBoost integrabile nel tuo ensemble Flask.
         """
         self.objective = objective
         self.eval_metric = eval_metric
         self.use_label_encoder = use_label_encoder
         self.model_dir = model_dir
-        # Rimuovi early_stopping_rounds dal costruttore
+
+        # Crea il modello di base
         self.model = xgb.XGBClassifier(
             objective=self.objective,
             eval_metric=self.eval_metric,
             use_label_encoder=self.use_label_encoder,
-            # Potresti voler impostare altri iperparametri di base qui
-            # n_estimators=100, # Ad esempio, imposta un numero fisso di alberi
-            # learning_rate=0.1,
-            # max_depth=6,
+            random_state=42
         )
-        # Assicura che la cartella per il modello esista
+
+        # Assicura che la cartella esista
         os.makedirs(self.model_dir, exist_ok=True)
 
+    # ============================================
+    # 🔹 TRAINING
+    # ============================================
     def train(self, X_train, y_train, X_val=None, y_val=None, **xgb_params):
         """
-        Addestra il modello XGBoost.
-
-        Args:
-            X_train, y_train: Dati di training.
-            X_val, y_val: Dati di validazione per l'early stopping (opzionale).
-                         ATTENZIONE: Questo parametro è ora ignorato.
-            **xgb_params: Altri parametri specifici di XGBoost (es. n_estimators, learning_rate, max_depth, scale_pos_weight).
-                         Questi sovrascrivono i valori di default del modello.
+        Addestra il modello XGBoost, gestendo anche class imbalance.
         """
-        # Gestione dello sbilanciamento con scale_pos_weight
-        # Calcola il rapporto tra il numero di osservazioni della classe negativa e quella positiva
-        # scale_pos_weight = (numero di osservazioni con classe 0) / (numero di osservazioni con classe 1)
-        # Questo è un modo efficace per gestire il bilanciamento in XGBoost.
         neg, pos = np.bincount(y_train)
         scale_pos_weight = neg / pos
-        print(f"Calcolato scale_pos_weight: {scale_pos_weight:.2f} per gestire lo sbilanciamento.")
-        xgb_params['scale_pos_weight'] = scale_pos_weight # Aggiungi il peso calcolato ai parametri
+        print(f"⚖️ Calcolato scale_pos_weight = {scale_pos_weight:.2f}")
 
-        # Aggiorna i parametri del modello con quelli forniti
-        # Attenzione: Se X_val e y_val sono forniti, ma non si vuole usare l'early stopping,
-        # non devono essere passati a fit() come eval_set.
-        # Rimuoviamo eventuali parametri specifici di early stopping dai parametri aggiuntivi se presenti
-        xgb_params.pop('early_stopping_rounds', None) # Rimuove il parametro se presente
-        xgb_params.pop('eval_set', None) # Rimuove eval_set se accidentalmente fornito
-        xgb_params.pop('eval_names', None) # Rimuove eval_names se accidentalmente fornito
-
+        # Parametri del modello
+        xgb_params['scale_pos_weight'] = scale_pos_weight
         self.model.set_params(**xgb_params)
 
-        # Addestra il modello *senza* specificare eval_set o early_stopping_rounds
-        print("Inizio addestramento del modello XGBoost (senza early stopping)...")
+        print("🚀 Inizio addestramento XGBoost...")
         self.model.fit(
             X_train, y_train,
-            # eval_set=eval_set, # Non usato
-            # early_stopping_rounds=early_stopping_rounds, # Non usato
-            verbose=True # Mostra la progressione del training
+            verbose=True
         )
-        print("Addestramento completato.")
+        print("✅ Addestramento completato.")
 
+    # ============================================
+    # 🔹 PREDICTION
+    # ============================================
     def predict(self, X):
-        """
-        Fai previsioni delle probabilità sul dataset X.
-
-        Args:
-            X (np.array or pd.DataFrame): Dati di input.
-
-        Returns:
-            np.array: Array delle probabilità predette per la classe positiva.
-        """
-        return self.model.predict_proba(X)[:, 1] # Prende la probabilità della classe positiva (1)
+        """Restituisce la probabilità della classe positiva (1)."""
+        return self.model.predict_proba(X)[:, 1]
 
     def predict_classes(self, X, threshold=0.5):
+        """Restituisce la classe (0 o 1) in base alla soglia."""
+        return (self.predict(X) > threshold).astype(int)
+
+    # ============================================
+    # 🔹 SALVATAGGIO & CARICAMENTO
+    # ============================================
+    def save_model(self, filename="xgboost_model.pkl"):
         """
-        Fai previsioni delle classi sul dataset X.
-
-        Args:
-            X (np.array or pd.DataFrame): Dati di input.
-            threshold (float): Soglia per la classificazione binaria.
-
-        Returns:
-            np.array: Array delle classi predette (0 o 1).
-        """
-        y_pred_proba = self.predict(X)
-        return (y_pred_proba > threshold).astype(int)
-
-    def save_model(self, filename="xgboost_model.json"):
-        """
-        Salva il modello XGBoost.
-
-        Args:
-            filename (str): Nome del file per salvare il modello (formato JSON consigliato).
+        Salva il modello in formato pickle, mantenendo metadati sklearn.
         """
         filepath = os.path.join(self.model_dir, filename)
-        self.model.save_model(filepath)
-        print(f"Modello XGBoost salvato in: {filepath}")
+        joblib.dump(self.model, filepath)
+        print(f"💾 Modello XGBoost salvato in formato pickle: {filepath}")
 
-    def load_model(self, filename="xgboost_model.json"):
+    def load_model(self, filename="xgboost_model.pkl"):
         """
-        Carica un modello XGBoost salvato.
-
-        Args:
-            filename (str): Nome del file del modello da caricare.
+        Carica un modello XGBoost salvato in formato pickle.
         """
         filepath = os.path.join(self.model_dir, filename)
         if os.path.exists(filepath):
-            self.model = xgb.XGBClassifier()
-            self.model.load_model(filepath)
-            print(f"Modello XGBoost caricato da: {filepath}")
-        else:
-            print(f"Errore: Il file {filepath} non esiste.")
+            self.model = joblib.load(filepath)
+            print(f"✅ Modello XGBoost caricato da: {filepath}")
 
-# Esempio di utilizzo (opzionale)
+            # Debug: verifica che siano mantenuti i metadati
+            print("🧩 Feature names:", getattr(self.model, "feature_names_in_", None))
+            print("🧩 Classi:", getattr(self.model, "classes_", None))
+        else:
+            print(f"❌ Errore: Il file {filepath} non esiste.")
+
+# =====================================================
+# ✅ ESEMPIO DI UTILIZZO (solo per test locali)
+# =====================================================
 # if __name__ == "__main__":
-#     # Questo richiede dati X_train, y_train, X_val, y_val preprocessati
-#     # xgb_model = XGBoostModel()
-#     # xgb_model.train(X_train, y_train) # Senza X_val/y_val o con X_val/y_val ora ignorati per early stopping
-#     pass
+#     from sklearn.datasets import load_breast_cancer
+#     from sklearn.model_selection import train_test_split
+#     data = load_breast_cancer()
+#     X_train, X_test, y_train, y_test = train_test_split(
+#         data.data, data.target, test_size=0.2, random_state=42)
+#
+#     model = XGBoostModel()
+#     model.train(X_train, y_train, n_estimators=100, max_depth=4)
+#     model.save_model()
+#
+#     # Ricarica e testa
+#     model2 = XGBoostModel()
+#     model2.load_model()
+#     preds = model2.predict(X_test)
+#     print("🔍 Esempio predizioni:", preds[:5])

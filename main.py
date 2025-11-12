@@ -5,6 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import joblib
+import numpy as np
 from classes.Datapreprocessing import DataPreprocessing
 from classes.KaggleLoader import KaggleLoader
 from classes.LogisticRegression import LogisticRegressionModel
@@ -62,7 +63,7 @@ def main():
     plt.savefig(os.path.join(fig_dir, "target_distribution.png"), dpi=150)
     plt.close()
 
-    ## Categorical
+    ## Plot distribuzione colonne categoriche
     categorical_cols = ['Gender', 'Married', 'Education', 'Property_Area']
     for col in categorical_cols:
         if col in df_train.columns:
@@ -76,7 +77,7 @@ def main():
             plt.savefig(os.path.join(fig_dir, f"{col.lower()}_distribution.png"), dpi=150)
             plt.close()
 
-## Numeric + TotalIncome
+## Plot distribuzione colonne numeriche
     numeric_cols = ['ApplicantIncome', 'CoapplicantIncome', 'LoanAmount']
     if 'TotalIncome' in df_train.columns:
         numeric_cols.append('TotalIncome')
@@ -91,29 +92,37 @@ def main():
             plt.savefig(os.path.join(fig_dir, f"{col.lower()}_histogram.png"), dpi=150)
             plt.close()
 
-            # Swarm plot (ogni punto)
-            plt.figure(figsize=(6, 4))
-            sns.swarmplot(y=df_train[col], color="mediumseagreen", size=3)
-            plt.title(f"Swarm plot di {col}")
-            plt.tight_layout()
-            plt.savefig(os.path.join(fig_dir, f"{col.lower()}_swarm.png"), dpi=150)
-            plt.close()
 
-    # --- Mappa dei valori mancanti ---
-    plt.figure(figsize=(10, 5))
-    sns.heatmap(df_train.isnull(), cbar=False, cmap='viridis')
-    plt.title("Mappa dei valori mancanti")
-    plt.tight_layout()
-    plt.savefig(os.path.join(fig_dir, "missing_values_heatmap.png"), dpi=150)
-    plt.close()
 
     # === Step 3: Preprocessing ==============================================
     df_preprocessed = prep.advanced_preprocessing(
         impute_numeric='median',
-        encode_categoricals='onehot',
         create_features=True
     )
     print(f"✅ Preprocessing completato. Nuova shape: {df_preprocessed.shape}")
+
+    ## === 🔍 AGGIUNGI: VERIFICA DATI PREPROCESSATI ===========================
+    #print("\n🔍 VERIFICA DATI PREPROCESSATI:")
+    #print("Statistiche features numeriche dopo preprocessing:")
+    #numeric_features = ['LoanAmount', 'TotalIncome', 'LoanAmount_to_Income']
+    #for col in numeric_features:
+    #    if col in df_preprocessed.columns:
+    #        print(f"\n--- {col} ---")
+    #        print(f"  Min: {df_preprocessed[col].min():.3f}")
+    #        print(f"  Max: {df_preprocessed[col].max():.3f}")
+    #        print(f"  Mean: {df_preprocessed[col].mean():.3f}")
+    #        print(f"  Std: {df_preprocessed[col].std():.3f}")
+#
+    ## Verifica che i valori siano ragionevoli
+    #print("\n✅ CONTROLLO VALORI RAGIONEVOLI:")
+    #if 'LoanAmount_to_Income' in df_preprocessed.columns:
+    #    reasonable_ratio = (df_preprocessed['LoanAmount_to_Income'] <= 10).all()
+    #    print(f"  LoanAmount_to_Income <= 10: {reasonable_ratio}")
+    #if 'TotalIncome' in df_preprocessed.columns:
+    #    positive_income = (df_preprocessed['TotalIncome'] >= 0).all()
+    #    print(f"  TotalIncome >= 0: {positive_income}")
+
+
 
     # === Step 4: Matrice di correlazione (DOPO preprocessing) ===============
     num_df = df_preprocessed.select_dtypes(include=['int64', 'float64']).copy()
@@ -130,8 +139,23 @@ def main():
         plt.close()
         print("✅ Matrice di correlazione salvata.")
 
+
+    ## DEBUG
+    #print("\n🔍 DEBUG - Distribuzione classi dopo preprocessing:")
+    #print("Valori unici in y:", df_preprocessed['Loan_Status'].unique())
+    #print("Conteggi:")
+    #print(df_preprocessed['Loan_Status'].value_counts())
+    #print("Proporzioni:")
+    #print(df_preprocessed['Loan_Status'].value_counts(normalize=True))
+#
+    ## Verifica che '1' corrisponda effettivamente a 'Y' (approvato)
+    #target_mapping = joblib.load("model/target_mapping_Loan_Status.pkl")
+    #print("Mappatura target:", target_mapping)
+
+
+
     # === Step 5: Split dei dati =============================================
-    X_train, X_val, y_train, y_val = prep.split_data(df_preprocessed, test_size=0.2, random_state=42)
+    X_train, X_val, y_train, y_val = prep.split_data(df_preprocessed, test_size=0.1, random_state=42)
     print("✅ Train-test split completato.")
     print(f"Train size: {len(X_train)}, Validation size: {len(X_val)}")
     print(X_train.columns) 
@@ -270,6 +294,26 @@ def main():
     print(f"Keras Neural Network - Accuracy: {metrics_keras['accuracy']:.4f}, AUC: {metrics_keras['auc_roc']:.4f}")
     print(f"XGBoost - Accuracy: {metrics_xgb['accuracy']:.4f}, AUC: {metrics_xgb['auc_roc']:.4f}")
 
+    # --- DOPO le predizioni, aggiungi: ---
+
+    print("\n🔍 DEBUG PREDIZIONI:")
+    print("=== Logistic Regression ===")
+    print(f"Probabilità range: [{y_prob_lr.min():.3f}, {y_prob_lr.max():.3f}]")
+    print(f"Classi predette: {np.unique(y_pred_lr, return_counts=True)}")
+
+    print("\n=== XGBoost ===")
+    print(f"Probabilità range: [{y_prob_xgb.min():.3f}, {y_prob_xgb.max():.3f}]")
+    print(f"Classi predette: {np.unique(y_pred_xgb, return_counts=True)}")
+
+    print("\n=== Keras ===")
+    print(f"Probabilità range: [{y_prob_keras.min():.3f}, {y_prob_keras.max():.3f}]")
+    print(f"Classi predette: {np.unique(y_pred_keras, return_counts=True)}")
+
+    # Verifica threshold
+    print(f"\n🔍 Soglia attuale: 0.5")
+    print(f"Logistic - Numero sopra soglia: {np.sum(y_prob_lr > 0.5)}")
+    print(f"XGBoost - Numero sopra soglia: {np.sum(y_prob_xgb > 0.5)}")
+    print(f"Keras - Numero sopra soglia: {np.sum(y_prob_keras > 0.5)}")
 
     print("\n🏁 Tutte le valutazioni e confronti completati!")
 
