@@ -124,6 +124,18 @@ class XGBoostModel:
         else:
             print(f"Errore: Il file {filepath} non esiste.")
 
+    def predict_proba(self, X):
+        """
+        Restituisce le probabilità predette per la classe positiva.
+
+        Args:
+            X: Dati di input
+
+        Returns:
+            np.array: Probabilità per la classe positiva
+        """
+        return self.model.predict_proba(X)[:, 1]
+
 # Esempio di utilizzo (opzionale)
 # if __name__ == "__main__":
 #     # Questo richiede dati X_train, y_train, X_val, y_val preprocessati

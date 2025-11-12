@@ -5,6 +5,7 @@ class LoanPredictor {
         this.loadingOverlay = document.getElementById('loadingOverlay');
         this.resetBtn = document.getElementById('resetBtn');
         this.finalPrediction = null;
+        this.loadingInterval = null;
 
         this.modelNames = {
             'keras': 'Rete Neurale',
@@ -43,85 +44,67 @@ class LoanPredictor {
 
     async handleSubmit(e) {
         e.preventDefault();
+        console.log("🎯 Inizio submit...");
 
         this.showLoading();
 
         try {
-            const features = this.prepareFeatures();
-            const prediction = await this.makePrediction(features);
+            const rawData = this.collectRawData();
+            console.log("📤 Invio dati RAW al backend:", rawData);
+
+            const prediction = await this.makePrediction(rawData);
+            console.log("✅ Predizione ricevuta:", prediction);
+
             this.displayResults(prediction);
+
         } catch (error) {
+            console.error("❌ Errore durante la predizione:", error);
             this.displayError(error);
         } finally {
+            console.log("🔚 Chiamando hideLoading...");
             this.hideLoading();
         }
     }
 
-    prepareFeatures() {
-        const formData = new FormData(this.form);
-        const applicantIncome = parseFloat(document.getElementById('ApplicantIncome').value);
-        const coapplicantIncome = parseFloat(document.getElementById('CoapplicantIncome').value);
-        const totalIncome = applicantIncome + coapplicantIncome;
-        const loanAmount = parseFloat(formData.get('LoanAmount'));
-
-        // Calcolo delle feature derivate
-        const loanAmountToIncome = totalIncome > 0 ? loanAmount / totalIncome : 0;
-        const hasDependents = parseInt(formData.get('Dependents')) > 0 ? 1 : 0;
-
-        // Codifica one-hot per Property_Area
-        const propertyArea = formData.get('Property_Area');
-        const propertyAreaSemiurban = propertyArea === 'Semiurban' ? 1 : 0;
-        const propertyAreaUrban = propertyArea === 'Urban' ? 1 : 0;
-
-        // Codifica per le feature categoriche
-        const isMarried = parseInt(formData.get('Married_Yes'));
-        const isGraduate = parseInt(formData.get('Education_Not Graduate')) === 0 ? 1 : 0;
-
-        // Calcolo income bracket (soglia a 5000)
-        const incomeBracket = totalIncome > 5000 ? 1 : 0;
-        const creditXIncomeHigh = parseInt(formData.get('Credit_History')) * incomeBracket;
-
-        return [
-            parseFloat(formData.get('Dependents')),      // Dependents
-            loanAmount,                                  // LoanAmount
-            parseFloat(formData.get('Loan_Amount_Term')), // Loan_Amount_Term
-            parseFloat(formData.get('Credit_History')),  // Credit_History
-            totalIncome,                                 // TotalIncome
-            loanAmountToIncome,                          // LoanAmount_to_Income
-            hasDependents,                               // HasDependents
-            isMarried,                                   // IsMarried
-            isGraduate,                                  // IsGraduate
-            incomeBracket,                               // Income_bracket
-            creditXIncomeHigh,                           // Credit_x_IncomeHigh
-            parseFloat(formData.get('Gender_Male')),     // Gender_Male
-            isMarried,                                   // Married_Yes (duplicato per compatibilità)
-            parseInt(formData.get('Education_Not Graduate')), // Education_Not Graduate
-            parseInt(formData.get('Self_Employed_Yes')), // Self_Employed_Yes
-            propertyAreaSemiurban,                       // Property_Area_Semiurban
-            propertyAreaUrban                            // Property_Area_Urban
-        ];
+    collectRawData() {
+        // Leggi i valori direttamente dagli elementi
+        return {
+            'Gender': document.querySelector('select[name="Gender_Male"]').value === '1' ? 'Male' : 'Female',
+            'Married': document.querySelector('select[name="Married_Yes"]').value === '1' ? 'Yes' : 'No',
+            'Dependents': parseInt(document.querySelector('input[name="Dependents"]').value) || 0,
+            'Education': document.querySelector('select[name="Education_Not Graduate"]').value === '1' ? 'Not Graduate' : 'Graduate',
+            'Self_Employed': document.querySelector('select[name="Self_Employed_Yes"]').value === '1' ? 'Yes' : 'No',
+            'ApplicantIncome': parseFloat(document.getElementById('ApplicantIncome').value) || 0,
+            'CoapplicantIncome': parseFloat(document.getElementById('CoapplicantIncome').value) || 0,
+            'LoanAmount': parseFloat(document.querySelector('input[name="LoanAmount"]').value) || 0,
+            'Loan_Amount_Term': parseFloat(document.querySelector('input[name="Loan_Amount_Term"]').value) || 0,
+            'Credit_History': parseInt(document.querySelector('select[name="Credit_History"]').value) || 0,
+            'Property_Area': document.querySelector('select[name="Property_Area"]').value || 'Rural'
+        };
     }
 
-    async makePrediction(features) {
+    async makePrediction(rawData) {
+        console.log('📊 Invio dati RAW al backend:', rawData);
+
         const response = await fetch('/predict', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                features: features
-            })
+            body: JSON.stringify(rawData)
         });
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || 'Errore nella predizione');
+            throw new Error(errorData.error || `Errore HTTP: ${response.status}`);
         }
 
         return await response.json();
     }
 
     displayResults(prediction) {
+        console.log("📊 Display risultati:", prediction);
+
         this.finalPrediction = prediction.final_prediction;
         const isApproved = this.finalPrediction === 1;
         const approvedProb = (prediction.final_probability * 100).toFixed(1);
@@ -150,11 +133,18 @@ class LoanPredictor {
         // Mostra la sezione risultati
         this.resultSection.style.display = 'block';
         this.resultSection.scrollIntoView({ behavior: 'smooth' });
+
+        console.log("✅ Risultati mostrati correttamente");
     }
 
     animateProbabilityBar(percentage) {
         const bar = document.getElementById('probabilityBar');
         const value = document.getElementById('probabilityValue');
+
+        if (!bar || !value) {
+            console.error("❌ Elementi per probability bar non trovati");
+            return;
+        }
 
         // Reset per l'animazione
         bar.style.width = '0%';
@@ -165,17 +155,17 @@ class LoanPredictor {
             bar.style.width = `${percentage}%`;
 
             // Animazione del contatore
-            this.animateValue(0, parseFloat(percentage), 2000, (value) => {
-                value.textContent = `${Math.round(value)}%`;
-            }, value);
+            this.animateValue(0, parseFloat(percentage), 2000, (currentValue) => {
+                value.textContent = `${Math.round(currentValue)}%`;
+            });
         }, 300);
     }
 
-    animateValue(start, end, duration, callback, element) {
+    animateValue(start, end, duration, callback) {
         const startTime = performance.now();
         const change = end - start;
 
-        function updateValue(currentTime) {
+        const updateValue = (currentTime) => {
             const elapsed = currentTime - startTime;
             const progress = Math.min(elapsed / duration, 1);
 
@@ -183,12 +173,12 @@ class LoanPredictor {
             const easeOutQuart = 1 - Math.pow(1 - progress, 4);
             const currentValue = start + (change * easeOutQuart);
 
-            callback(currentValue, element);
+            callback(currentValue);
 
             if (progress < 1) {
                 requestAnimationFrame(updateValue);
             }
-        }
+        };
 
         requestAnimationFrame(updateValue);
     }
@@ -201,6 +191,11 @@ class LoanPredictor {
 
     displayModelPredictions(individualPredictions) {
         const container = document.getElementById('modelPredictions');
+        if (!container) {
+            console.error("❌ Container modelPredictions non trovato");
+            return;
+        }
+
         let html = '';
 
         for (const [modelKey, probability] of Object.entries(individualPredictions)) {
@@ -228,8 +223,8 @@ class LoanPredictor {
                         </div>
                         <div class="col-md-6">
                             <div class="progress" style="height: 12px; border-radius: 6px;">
-                                <div class="progress-bar" 
-                                     style="width: ${barWidth}%; background-color: ${modelColor};" 
+                                <div class="progress-bar"
+                                     style="width: ${barWidth}%; background-color: ${modelColor};"
                                      role="progressbar">
                                 </div>
                             </div>
@@ -247,6 +242,11 @@ class LoanPredictor {
 
     displayVotingDetails(votingDetails, finalProbability) {
         const container = document.getElementById('votingDetails');
+        if (!container) {
+            console.error("❌ Container votingDetails non trovato");
+            return;
+        }
+
         let html = '';
 
         // Intestazione della tabella
@@ -306,6 +306,11 @@ class LoanPredictor {
 
     displayKeyFactors(prediction, isApproved) {
         const factorsDiv = document.getElementById('keyFactors');
+        if (!factorsDiv) {
+            console.error("❌ Container keyFactors non trovato");
+            return;
+        }
+
         const modelAgreement = this.analyzeModelAgreement(prediction.individual_predictions);
 
         let factorsHTML = '';
@@ -350,7 +355,7 @@ class LoanPredictor {
     }
 
     getConfidenceLevel(probability) {
-        const confidence = Math.abs(probability - 0.5) * 2; // 0-1 scale
+        const confidence = Math.abs(probability - 0.5) * 2;
         if (confidence > 0.7) return 'Alta';
         if (confidence > 0.4) return 'Media';
         return 'Bassa';
@@ -365,7 +370,7 @@ class LoanPredictor {
             if (prob > threshold || prob < (1 - threshold)) {
                 confidentModels++;
             }
-            if ((prob > 0.5) !== (this.finalPrediction > 0.5)) {
+            if ((prob > 0.5) !== (this.finalPrediction === 1)) {
                 divergentModels.push(model);
             }
         }
@@ -385,6 +390,8 @@ class LoanPredictor {
     }
 
     displayError(error) {
+        console.error("❌ Display error:", error);
+
         // Mostra un alert più elegante
         const errorHTML = `
             <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -396,27 +403,68 @@ class LoanPredictor {
 
         // Inserisce l'alert all'inizio del container principale
         const mainCard = document.querySelector('.glass-card');
-        mainCard.insertAdjacentHTML('afterbegin', errorHTML);
-
-        console.error('Prediction error:', error);
+        if (mainCard) {
+            mainCard.insertAdjacentHTML('afterbegin', errorHTML);
+        }
     }
 
     showLoading() {
-        this.loadingOverlay.style.display = 'flex';
-        this.form.querySelector('button').disabled = true;
-        this.form.querySelector('button').innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>ANALISI IN CORSO...';
+        console.log("🔄 Mostro loading overlay");
+
+        if (this.loadingOverlay) {
+            this.loadingOverlay.style.display = 'flex';
+        }
+
+        const submitButton = this.form.querySelector('button[type="submit"]');
+        if (submitButton) {
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>ANALISI IN CORSO...';
+        }
+
+        // Ferma qualsiasi intervallo precedente
+        if (this.loadingInterval) {
+            clearInterval(this.loadingInterval);
+        }
+
+        // SIMULA il progresso (solo visivo)
+        let progress = 0;
+        this.loadingInterval = setInterval(() => {
+            progress += 2;
+            if (progress >= 80) {
+                clearInterval(this.loadingInterval);
+            }
+        }, 100);
     }
 
     hideLoading() {
-        this.loadingOverlay.style.display = 'none';
-        this.form.querySelector('button').disabled = false;
-        this.form.querySelector('button').innerHTML = '<i class="fas fa-brain me-2"></i>ANALIZZA CON ENSEMBLE AI';
+        console.log("🔚 Nascondo loading overlay");
+
+        // Ferma l'intervallo
+        if (this.loadingInterval) {
+            clearInterval(this.loadingInterval);
+            this.loadingInterval = null;
+        }
+
+        // Ripristina il bottone
+        const submitButton = this.form.querySelector('button[type="submit"]');
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.innerHTML = '<i class="fas fa-brain me-2"></i>ANALIZZA CON ENSEMBLE AI';
+        }
+
+        // Nascondi il loading overlay
+        if (this.loadingOverlay) {
+            this.loadingOverlay.style.display = 'none';
+        }
+
+        console.log("✅ Loading nascosto completamente");
     }
 
     resetForm() {
+        console.log("🔄 Reset form");
         this.form.reset();
         this.resultSection.style.display = 'none';
-        this.calculateTotalIncome(); // Aggiorna il display del reddito totale
+        this.calculateTotalIncome();
 
         // Rimuovi eventuali alert di errore
         const alerts = document.querySelectorAll('.alert');
@@ -426,18 +474,17 @@ class LoanPredictor {
     }
 }
 
-// Inizializza l'app quando il DOM è caricato
+//Inizializzazione
 document.addEventListener('DOMContentLoaded', () => {
-    new LoanPredictor();
+    console.log("🚀 Inizializzo LoanPredictor");
+    const predictor = new LoanPredictor();
 
-    // Aggiungi alcuni dati di esempio per testing
-    document.getElementById('ApplicantIncome').value = 5000;
+    // Dati di esempio per testing
+    document.getElementById('ApplicantIncome').value = 8000;
     document.getElementById('CoapplicantIncome').value = 2000;
     document.getElementsByName('LoanAmount')[0].value = 150000;
     document.getElementsByName('Loan_Amount_Term')[0].value = 360;
-    document.getElementsByName('Dependents')[0].value = 1;
+    document.getElementsByName('Dependents')[0].value = 0;
 
-    // Aggiorna il calcolo del reddito totale
-    const predictor = new LoanPredictor();
     predictor.calculateTotalIncome();
 });

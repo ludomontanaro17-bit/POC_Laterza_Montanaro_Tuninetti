@@ -42,6 +42,18 @@ class LogisticRegressionModel:
         y_pred_proba = self.model.predict_proba(X)[:, 1] if hasattr(self.model, "predict_proba") else None
         return y_pred_class, y_pred_proba
 
+    def predict_proba(self, X):
+        """
+        Restituisce le probabilità predette per la classe positiva.
+
+        Args:
+            X: Dati di input
+
+        Returns:
+            np.array: Probabilità per la classe positiva
+        """
+        return self.model.predict_proba(X)[:, 1]
+
     def save_model(self):
         """
         Salva il modello addestrato in un file .pkl nella cartella specificata.
@@ -62,3 +74,4 @@ class LogisticRegressionModel:
         self.model = joblib.load(model_path)
         print(f"📂 Modello caricato da: {model_path}")
         return self.model
+

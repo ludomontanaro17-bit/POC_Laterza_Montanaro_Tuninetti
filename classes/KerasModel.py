@@ -1,140 +1,191 @@
+import os
+import json
+import joblib
+import numpy as np
+from dataclasses import dataclass
+from typing import Optional, Sequence
+
 from tensorflow import keras
 from tensorflow.keras import layers
-import pandas as pd
-import os
+from sklearn.utils.class_weight import compute_class_weight
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import roc_curve, auc as sk_auc
+
+@dataclass
+class TrainResult:
+    history: object
+    best_threshold: float
+    val_auc: float
 
 class KerasModel:
-    def __init__(self, input_dim, dropout_rate=0.3, l2_reg=0.01, model_dir="model"):
-        """
-        Inizializza il wrapper per il modello Keras.
-
-        Args:
-            input_dim (int): Numero di features in input.
-            dropout_rate (float): Tasso di dropout.
-            l2_reg (float): Fattore di regolarizzazione L2.
-            model_dir (str): Directory dove salvare il modello.
-        """
+    """
+    Rete binaria con:
+      - Dense -> BN -> ReLU -> Dropout (xN)
+      - L2 lieve, Dropout lieve
+      - metriche AUC/Precision/Recall
+      - early stopping su val_auc
+      - calibratore (Platt) + soglia ottimale (Youden J)
+    """
+    def __init__(
+        self,
+        input_dim: int,
+        hidden_layers: Sequence[int] = (128, 64, 32),
+        dropout: float = 0.15,
+        l2_reg: float = 1e-3,
+        lr: float = 1e-3,
+        label_smoothing: float = 0.0,
+        model_dir: str = "model",
+        name: str = "keras_model.h5",
+    ):
         self.input_dim = input_dim
-        self.dropout_rate = dropout_rate
+        self.hidden_layers = hidden_layers
+        self.dropout = dropout
         self.l2_reg = l2_reg
+        self.lr = lr
+        self.label_smoothing = label_smoothing
         self.model_dir = model_dir
-        self.model = self._build_model()
-        # Assicura che la cartella per il modello esista
+        self.name = name
+
         os.makedirs(self.model_dir, exist_ok=True)
 
+        self.model = self._build_model()
+        self.calibrator: Optional[LogisticRegression] = None
+        self.best_threshold: float = 0.5
+
+    # -------------------------- build/compile -------------------------------
+    def _block(self, x, units):
+        x = layers.Dense(
+            units,
+            kernel_initializer="he_normal",
+            kernel_regularizer=keras.regularizers.l2(self.l2_reg),
+            use_bias=False,
+        )(x)
+        x = layers.BatchNormalization()(x)
+        x = layers.Activation("relu")(x)
+        x = layers.Dropout(self.dropout)(x)
+        return x
+
     def _build_model(self):
-        """Costruisce il modello Keras."""
-        model = keras.Sequential([
-            layers.Dense(128, activation='relu', input_shape=(self.input_dim,),
-                         kernel_regularizer=keras.regularizers.l2(self.l2_reg)),
-            layers.BatchNormalization(),
-            layers.Dropout(self.dropout_rate),
+        inputs = keras.Input(shape=(self.input_dim,))
+        x = inputs
+        for units in self.hidden_layers:
+            x = self._block(x, units)
+        outputs = layers.Dense(1, activation="sigmoid")(x)
+        model = keras.Model(inputs, outputs)
 
-            layers.Dense(64, activation='relu',
-                         kernel_regularizer=keras.regularizers.l2(self.l2_reg)),
-            layers.BatchNormalization(),
-            layers.Dropout(self.dropout_rate),
-
-            layers.Dense(32, activation='relu',
-                         kernel_regularizer=keras.regularizers.l2(self.l2_reg)),
-            layers.BatchNormalization(),
-            layers.Dropout(self.dropout_rate),
-
-            layers.Dense(1, activation='sigmoid')
-        ])
-
+        loss = keras.losses.BinaryCrossentropy(label_smoothing=self.label_smoothing)
         model.compile(
-            optimizer='adam',
-            loss='binary_crossentropy',
-            metrics=['accuracy']
+            optimizer=keras.optimizers.Adam(learning_rate=self.lr),
+            loss=loss,
+            metrics=[
+                "accuracy",
+                keras.metrics.AUC(name="auc"),
+                keras.metrics.Precision(name="precision"),
+                keras.metrics.Recall(name="recall"),
+            ],
         )
         return model
 
-    def train(self, X_train, y_train, X_val, y_val, epochs=100, batch_size=32, verbose=1):
-        """
-        Addestra il modello.
-
-        Args:
-            X_train, y_train: Dati di training.
-            X_val, y_val: Dati di validazione.
-            epochs (int): Numero massimo di epoche.
-            batch_size (int): Dimensione del batch.
-            verbose (int): Verbosità del training.
-
-        Returns:
-            history: Oggetto History del training.
-        """
-        early_stopping = keras.callbacks.EarlyStopping(
-            monitor='val_loss',
-            patience=10,
-            restore_best_weights=True
-        )
-        reduce_lr = keras.callbacks.ReduceLROnPlateau(
-            monitor='val_loss',
-            factor=0.2,
-            patience=5,
-            min_lr=0.0001
-        )
-
-        print("Inizio addestramento del modello Keras...")
-        history = self.model.fit(
+    # ------------------------------ training --------------------------------
+    def train(
+            self,
             X_train, y_train,
-            batch_size=batch_size,
-            epochs=epochs,
+            X_val, y_val,
+            epochs: int = 100,
+            batch_size: int = 32,
+            class_weight: Optional[dict] = None,
+            verbose: int = 1,
+    ):
+        """Addestra la rete, calcola soglia ottimale e restituisce i valori richiesti dal main."""
+
+        # Pesi di classe bilanciati automaticamente
+        if class_weight is None:
+            cw = compute_class_weight("balanced", classes=np.unique(y_train), y=y_train)
+            class_weight = {0: float(cw[0]), 1: float(cw[1])}
+            print(f"🎯 Class weights: {class_weight}")
+
+        ckpt_path = os.path.join(self.model_dir, self.name)
+        callbacks = [
+            keras.callbacks.ModelCheckpoint(
+                ckpt_path, monitor="val_auc", mode="max", save_best_only=True, verbose=0
+            ),
+            keras.callbacks.ReduceLROnPlateau(
+                monitor="val_auc", mode="max", factor=0.5, patience=6, min_lr=1e-5, verbose=0
+            ),
+            keras.callbacks.EarlyStopping(
+                monitor="val_auc", mode="max", patience=15, restore_best_weights=True, verbose=0
+            ),
+        ]
+
+        # Training
+        hist = self.model.fit(
+            X_train, y_train,
             validation_data=(X_val, y_val),
-            callbacks=[early_stopping, reduce_lr],
-            verbose=verbose
+            epochs=epochs,
+            batch_size=batch_size,
+            class_weight=class_weight,
+            callbacks=callbacks,
+            verbose=verbose,
         )
-        print("Addestramento completato.")
-        return history
 
-    def predict(self, X):
-        """
-        Fai previsioni sul dataset X.
+        # Ricarica pesi migliori
+        if os.path.exists(ckpt_path):
+            self.model = keras.models.load_model(ckpt_path)
 
-        Args:
-            X (np.array or pd.DataFrame): Dati di input.
+        # Probabilità sul validation set
+        y_prob = self.model.predict(X_val, verbose=0).ravel()
 
-        Returns:
-            np.array: Array delle probabilità predette.
-        """
-        return self.model.predict(X)
+        # Ricerca soglia ottimale (Youden J)
+        from sklearn.metrics import roc_curve, auc, balanced_accuracy_score, f1_score
+        fpr, tpr, thr = roc_curve(y_val, y_prob)
+        youden = tpr - fpr
+        self.best_threshold = float(thr[np.argmax(youden)])
+        val_auc = float(auc(fpr, tpr))
 
-    def predict_classes(self, X, threshold=0.5):
-        """
-        Fai previsioni delle classi sul dataset X.
+        # Predizioni binarie
+        y_pred = (y_prob >= self.best_threshold).astype(int)
 
-        Args:
-            X (np.array or pd.DataFrame): Dati di input.
-            threshold (float): Soglia per la classificazione binaria.
+        # Report sintetico (per il main)
+        keras_report = {
+            "val_auc": val_auc,
+            "val_balanced_acc": float(balanced_accuracy_score(y_val, y_pred)),
+            "val_f1": float(f1_score(y_val, y_pred)),
+            "best_threshold": self.best_threshold,
+            "dist_pred": np.bincount(y_pred).tolist(),
+        }
 
-        Returns:
-            np.array: Array delle classi predette (0 o 1).
-        """
-        y_pred_proba = self.predict(X)
-        return (y_pred_proba > threshold).astype(int)
+        # Salva soglia
+        with open(os.path.join(self.model_dir, "keras_meta.json"), "w") as f:
+            json.dump({"best_threshold": self.best_threshold}, f)
 
-    def save_model(self, filename="keras_model.h5"):
-        """
-        Salva il modello Keras.
+        print(f"✅ Best threshold: {self.best_threshold:.3f} | AUC: {val_auc:.3f}")
+        return hist, y_prob, y_pred, keras_report
 
-        Args:
-            filename (str): Nome del file per salvare il modello.
-        """
-        filepath = os.path.join(self.model_dir, filename)
-        self.model.save(filepath)
-        print(f"Modello Keras salvato in: {filepath}")
+    # ------------------------------ inference --------------------------------
+    def predict_proba(self, X, calibrated: bool = True) -> np.ndarray:
+        raw = self.model.predict(X, verbose=0).reshape(-1)
+        if calibrated and self.calibrator is not None:
+            return raw  # calibrazione disattivata
+        return raw
 
-    def load_model(self, filename="keras_model.h5"):
-        """
-        Carica un modello Keras salvato.
+    def predict_classes(self, X, threshold: Optional[float] = None, calibrated: bool = True) -> np.ndarray:
+        probs = self.predict_proba(X, calibrated=calibrated)
+        thr = self.best_threshold if threshold is None else threshold
+        return (probs >= thr).astype(int)
 
-        Args:
-            filename (str): Nome del file del modello da caricare.
-        """
-        filepath = os.path.join(self.model_dir, filename)
-        if os.path.exists(filepath):
-            self.model = keras.models.load_model(filepath)
-            print(f"Modello Keras caricato da: {filepath}")
-        else:
-            print(f"Errore: Il file {filepath} non esiste.")
+    # ------------------------------- IO --------------------------------------
+    def save_model(self):
+        self.model.save(os.path.join(self.model_dir, self.name))
+        if self.calibrator is not None:
+            joblib.dump(self.calibrator, os.path.join(self.model_dir, "keras_calibrator.pkl"))
+        with open(os.path.join(self.model_dir, "keras_meta.json"), "w") as f:
+            json.dump({"best_threshold": self.best_threshold}, f)
+
+    def load(self):
+        self.model = keras.models.load_model(os.path.join(self.model_dir, self.name))
+        cal_path = os.path.join(self.model_dir, "keras_calibrator.pkl")
+        meta_path = os.path.join(self.model_dir, "keras_meta.json")
+        self.calibrator = joblib.load(cal_path) if os.path.exists(cal_path) else None
+        if os.path.exists(meta_path):
+            with open(meta_path, "r") as f:
+                self.best_threshold = json.load(f).get("best_threshold", 0.5)

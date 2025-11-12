@@ -3,6 +3,7 @@
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
 import seaborn as sns
 import joblib
 from classes.Datapreprocessing import DataPreprocessing
@@ -11,7 +12,6 @@ from classes.LogisticRegression import LogisticRegressionModel
 from classes.ModelEvaluator import ModelEvaluator
 from classes.KerasModel import KerasModel
 from classes.FeatureImportance import FeatureImportanceAnalyzer
-# --- Nuovi Import ---
 from classes.XGBoost import XGBoostModel
 from classes.CrossValidator import CrossValidator
 # --------------------
@@ -184,22 +184,21 @@ def main():
 
 
     # --- STEP 9: Addestramento Rete Neurale Keras ===========================
-    print("\n--- Addestramento Rete Neurale Keras ---")
-    keras_model = KerasModel(input_dim=X_train.shape[1], model_dir="model")
-    keras_model.train(
-        X_train=X_train,
-        y_train=y_train,
-        X_val=X_val,
-        y_val=y_val,
-        epochs=50,
-        batch_size=32,
-        verbose=1
-    )
-    keras_model.save_model()
+    print("\n--- Addestramento Rete Neurale Keras (Versione Migliorata) ---")
 
-    # Predizioni Keras
-    y_prob_keras = keras_model.predict(X_val).flatten()
-    y_pred_keras = (y_prob_keras > 0.5).astype(int)
+    keras_model = KerasModel(input_dim=X_train.shape[1], model_dir="model")
+    history, y_prob_keras, y_pred_keras, keras_report = keras_model.train(
+        X_train, y_train, X_val, y_val, epochs=100, batch_size=16, verbose=1
+    )
+
+    print(f"✅ Training completato. "
+          f"AUC={keras_report['val_auc']:.3f}, "
+          f"BalancedAcc={keras_report['val_balanced_acc']:.3f}, "
+          f"F1={keras_report['val_f1']:.3f}, "
+          f"Soglia={keras_report['best_threshold']:.2f}, "
+          f"Distribuzione={keras_report['dist_pred']})")
+
+    keras_model.save_model()
 
     # --- STEP 10: Valutazione Keras (Test Set) ==============================
     print("\n🔍 Valutazione Rete Neurale Keras (Test Set):")
@@ -246,6 +245,82 @@ def main():
     y_prob_xgb = xgb_model.predict(X_val)
     y_pred_xgb = xgb_model.predict_classes(X_val)
 
+
+
+
+# INIZIO DEBUG
+    # === DEBUG: Analisi Probabilità ============================================
+
+    print("\n" + "=" * 60)
+    print("🔍 DEBUG - ANALISI PROBABILITÀ MODELLI")
+    print("=" * 60)
+
+    # Ottieni le probabilità di tutti i modelli
+    y_prob_lr = logreg_model.predict_proba(X_val)  # Assicurati che questo metodo esista
+    y_prob_keras = keras_model.predict_proba(X_val).flatten()
+    y_prob_xgb = xgb_model.predict_proba(X_val)  # Assicurati che questo metodo esista
+
+    print("\n📊 DISTRIBUZIONE PROBABILITÀ:")
+    print(f"Logistic Regression - Min: {y_prob_lr.min():.4f}, Max: {y_prob_lr.max():.4f}, Mean: {y_prob_lr.mean():.4f}")
+    print(
+        f"Keras NN           - Min: {y_prob_keras.min():.4f}, Max: {y_prob_keras.max():.4f}, Mean: {y_prob_keras.mean():.4f}")
+    print(
+        f"XGBoost            - Min: {y_prob_xgb.min():.4f}, Max: {y_prob_xgb.max():.4f}, Mean: {y_prob_xgb.mean():.4f}")
+
+    # Calcola manualmente il soft voting per debug
+    soft_voting_manual = (y_prob_lr + y_prob_keras + y_prob_xgb) / 3
+    print(
+        f"\n🧮 SOFT VOTING MANUALE - Min: {soft_voting_manual.min():.4f}, Max: {soft_voting_manual.max():.4f}, Mean: {soft_voting_manual.mean():.4f}")
+
+    # Conta quanti esempi hanno probabilità estreme per Keras
+    keras_extreme_low = (y_prob_keras < 0.01).sum()
+    keras_extreme_high = (y_prob_keras > 0.99).sum()
+    print(
+        f"\n⚠️  KERAS - Probabilità < 0.01: {keras_extreme_low}/{len(y_prob_keras)} ({keras_extreme_low / len(y_prob_keras) * 100:.1f}%)")
+    print(
+        f"⚠️  KERAS - Probabilità > 0.99: {keras_extreme_high}/{len(y_prob_keras)} ({keras_extreme_high / len(y_prob_keras) * 100:.1f}%)")
+
+    # Visualizza distribuzioni
+    plt.figure(figsize=(15, 5))
+
+    plt.subplot(1, 3, 1)
+    plt.hist(y_prob_lr, bins=50, alpha=0.7, color='blue')
+    plt.title('Logistic Regression Probabilities')
+    plt.xlabel('Probability')
+    plt.ylabel('Count')
+
+    plt.subplot(1, 3, 2)
+    plt.hist(y_prob_keras, bins=50, alpha=0.7, color='red')
+    plt.title('Keras NN Probabilities')
+    plt.xlabel('Probability')
+    plt.ylabel('Count')
+
+    plt.subplot(1, 3, 3)
+    plt.hist(y_prob_xgb, bins=50, alpha=0.7, color='green')
+    plt.title('XGBoost Probabilities')
+    plt.xlabel('Probability')
+    plt.ylabel('Count')
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(fig_dir, "debug_probability_distributions.png"), dpi=150)
+    plt.close()
+
+    print(f"\n📈 Grafico distribuzioni salvato in: {os.path.join(fig_dir, 'debug_probability_distributions.png')}")
+
+
+
+
+
+
+
+
+
+
+
+
+
+    #INIZIO DEBUG
+
     # --- STEP 13: Valutazione XGBoost (Test Set) ============================
     print("\n🔍 Valutazione XGBoost (Test Set):")
     evaluator_xgb = ModelEvaluator(
@@ -255,6 +330,68 @@ def main():
         model_name="XGBoost"
     )
     metrics_xgb = evaluator_xgb.evaluate() # Ottieni i risultati per il confronto
+
+    # === DEBUG: Confronto Predizioni Soft Voting ================================
+
+    print("\n" + "=" * 60)
+    print("🔍 DEBUG - CONFRONTO PREDIZIONI SOFT VOTING")
+    print("=" * 60)
+
+    # Calcola predizioni individuali
+    y_pred_lr = (y_prob_lr > 0.5).astype(int)
+    y_pred_keras = (y_prob_keras > 0.5).astype(int)
+    y_pred_xgb = (y_prob_xgb > 0.5).astype(int)
+    y_pred_soft_voting = (soft_voting_manual > 0.5).astype(int)
+
+    print("\n🎯 CONFRONTO PREDIZIONI (0=Rifiutato, 1=Approvato):")
+    print(f"Logistic Regression: {np.bincount(y_pred_lr)}")
+    print(f"Keras NN:           {np.bincount(y_pred_keras)}")
+    print(f"XGBoost:            {np.bincount(y_pred_xgb)}")
+    print(f"Soft Voting Manual: {np.bincount(y_pred_soft_voting)}")
+
+    # Verifica discrepanze
+    discrepancies_keras_vs_lr = (y_pred_keras != y_pred_lr).sum()
+    discrepancies_keras_vs_xgb = (y_pred_keras != y_pred_xgb).sum()
+    discrepancies_all = len(set([tuple(y_pred_lr), tuple(y_pred_keras), tuple(y_pred_xgb)])) > 1
+
+    print(f"\n❌ DISCREPANZE:")
+    print(
+        f"Keras vs Logistic Regression: {discrepancies_keras_vs_lr}/{len(y_val)} ({discrepancies_keras_vs_lr / len(y_val) * 100:.1f}%)")
+    print(
+        f"Keras vs XGBoost:            {discrepancies_keras_vs_xgb}/{len(y_val)} ({discrepancies_keras_vs_xgb / len(y_val) * 100:.1f}%)")
+    print(f"Tutti i modelli discordano:  {discrepancies_all}")
+    # === DEBUG CRITICO: Verifica Encoding Target ===============================
+
+    print("\n" + "=" * 60)
+    print("🔍 DEBUG - VERIFICA ENCODING TARGET")
+    print("=" * 60)
+
+    print("Valori unici target:")
+    print(f"y_train: {np.unique(y_train)}")
+    print(f"y_val: {np.unique(y_val)}")
+
+    # Verifica la correlazione tra probabilità e target reale
+    corr_lr = np.corrcoef(y_prob_lr, y_val)[0, 1]
+    corr_keras = np.corrcoef(y_prob_keras, y_val)[0, 1]
+    corr_xgb = np.corrcoef(y_prob_xgb, y_val)[0, 1]
+
+    print(f"\nCorrelazione probabilità vs target:")
+    print(f"LR: {corr_lr:.3f} | Keras: {corr_keras:.3f} | XGB: {corr_xgb:.3f}")
+
+    # Se Keras ha correlazione negativa, sta predendo l'opposto!
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     # --- STEP 14: Cross-Validation XGBoost (su Train Set) ===================
     print("\n🔍 Cross-Validation XGBoost (Train Set):")
