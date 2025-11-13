@@ -1,11 +1,11 @@
 # POC_Laterza_Montanaro_Tuninetti
-Struttura logica del progetto:
+### Struttura logica del progetto:
 
-Web Application:
+## Web Application:
 
 `app`/ directory con API e interfaccia web
 
-Machine Learning:
+## Machine Learning:
 
 `classes`/ contiene tutti i modelli e utility ML
 
