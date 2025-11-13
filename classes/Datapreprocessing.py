@@ -199,9 +199,14 @@ class DataPreprocessing:
             #if 'Dependents' in df.columns:
             #    df['HasDependents'] = (df['Dependents'] > 0).astype(int)
             if 'Married' in df.columns:
-                df['IsMarried'] = df['Married'].map({'Yes': 1, 'No': 0}).fillna(0).astype(int)
+                df['Married'] = df['Married'].map({'Yes': 1, 'No': 0}).fillna(0).astype(int)
             if 'Education' in df.columns:
-                df['IsGraduate'] = df['Education'].map({'Graduate': 1, 'Not Graduate': 0}).fillna(0).astype(int)
+                df['Education'] = df['Education'].map({'Graduate': 1, 'Not Graduate': 0}).fillna(1).astype(int)
+            if 'Gender' in df.columns:
+                df['Gender'] = df['Gender'].map({'Male': 1, 'Female': 0}).fillna(1).astype(int)
+            if 'Self_Employed' in df.columns:
+                df['Self_Employed'] = df['Self_Employed'].map({'No': 1, 'Yes': 0}).fillna(1).astype(int)
+
 
             ## Income brackets
             #income_labels = {'low': 0, 'medium': 1, 'high': 2}
