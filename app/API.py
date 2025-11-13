@@ -479,3 +479,9 @@ class API:
 
     def run(self, host="0.0.0.0", port=5000, debug=True):
         self.app.run(host=host, port=port, debug=debug)
+
+
+
+if __name__ == "__main__":
+    api = API()
+    api.run()

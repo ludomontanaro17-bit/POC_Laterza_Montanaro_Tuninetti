@@ -18,7 +18,7 @@ python-slugify>=8.0.0 # Dipendenza di python-slugify
 
 # --- Web Framework & Monitoring ---
 Flask>=2.3.0    # Compatibile con Python 3.11
-prometheus-flask-exporter>=1.0.0 # Compatibile con Python 3.11
+prometheus-flask-exporter>=0.23.2 # Compatibile con Python 3.11
 
 # --- API & Data Handling ---
 requests>=2.30.0 # Compatibile con Python 3.11
