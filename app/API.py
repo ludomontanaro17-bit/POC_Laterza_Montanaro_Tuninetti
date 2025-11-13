@@ -147,7 +147,7 @@ class API:
             raise
 
     def _load_all_models(self):
-       
+
         try:
             # Carica modello Keras
             if os.path.exists(self.model_paths['keras']):
@@ -155,26 +155,46 @@ class API:
                 print("✅ Modello Keras caricato con successo")
             else:
                 print("⚠️ Modello Keras non trovato")
-            
+
             # Carica modello Logistic Regression
             if os.path.exists(self.model_paths['logreg']):
                 self.models['logreg'] = joblib.load(self.model_paths['logreg'])
                 print("✅ Modello Logistic Regression caricato con successo")
             else:
                 print("⚠️ Modello Logistic Regression non trovato")
-            
-            # Carica modello XGBoost
-            if os.path.exists(self.model_paths['xgboost']):
-                # CARICA XGBOOST MODEL con il metodo corretto per .json
-                xgb_instance = xgb.XGBClassifier() # Crea un nuovo oggetto XGBClassifier
-                xgb_instance.load_model(self.model_paths['xgboost']) # Carica i pesi/configurazione dal file JSON
-                self.models['xgboost'] = xgb_instance # Assegna l'oggetto caricato
-                print("✅ Modello XGBoost caricato con successo")
+
+            # Carica modello XGBoost - VERSIONE SEMPLIFICATA
+            xgb_paths = [
+                self.model_paths['xgboost'],  # JSON originale
+                'model/xgboost_model.pkl',  # Backup pickle
+                'model/xgboost_simple.json',  # Eventuale versione semplice
+                'model/xgboost_simple.pkl'  # Eventuale versione semplice pickle
+            ]
+
+            for xgb_path in xgb_paths:
+                if os.path.exists(xgb_path):
+                    try:
+                        if xgb_path.endswith('.json'):
+                            xgb_instance = xgb.XGBClassifier()
+                            xgb_instance.load_model(xgb_path)
+                            self.models['xgboost'] = xgb_instance
+                            print(f"✅ Modello XGBoost caricato da {xgb_path}")
+                            break
+                        elif xgb_path.endswith('.pkl'):
+                            self.models['xgboost'] = joblib.load(xgb_path)
+                            print(f"✅ Modello XGBoost caricato da {xgb_path}")
+                            break
+                    except Exception as e:
+                        print(f"❌ Fallito caricamento da {xgb_path}: {e}")
+                else:
+                    print(f"⚠️ {xgb_path} non trovato")
             else:
-                print("⚠️ Modello XGBoost non trovato")
-                
+                print("⚠️ Nessun modello XGBoost disponibile")
+
         except Exception as e:
             print(f"❌ Errore nel caricamento dei modelli: {e}")
+            import traceback
+            traceback.print_exc()
 
     def _load_scaler(self):
         """Carica lo scaler salvato con joblib."""

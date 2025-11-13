@@ -284,10 +284,25 @@ def main():
 
     print(f"🎯 Miglior XGBoost fold = {best_idx_xgb}, AUC = {cv_xgb.cv_results_['test_roc_auc'][best_idx_xgb]:.4f}")
 
-    # --- SALVA IL MIGLIOR MODELLO ---
-    best_xgb_model.save_model('xgboost_model.json')
-    print("💾 XGBoost salvato (best fold dalla cross validation).")
+    # --- SALVA IL MIGLIOR MODELLO CON FORMATO CORRETTO ---
+    try:
+        # Metodo 1: Prova a salvare con encoding esplicito
+        best_xgb_model.save_model('model/xgboost_model.json')
+        print("💾 XGBoost salvato in formato JSON")
 
+        # Verifica che il file sia leggibile
+        with open('model/xgboost_model.json', 'r', encoding='utf-8') as f:
+            content = f.read()
+            print("✅ File JSON verificato e leggibile")
+
+    except Exception as e:
+        print(f"❌ Errore nel salvataggio JSON: {e}")
+        # Metodo alternativo: salva come pickle
+        try:
+            joblib.dump(best_xgb_model, 'model/xgboost_model.pkl')
+            print("💾 XGBoost salvato come file .pkl (alternativa)")
+        except Exception as e2:
+            print(f"❌ Errore anche nel salvataggio pickle: {e2}")
     # --- Predizioni ---
     y_prob_xgb = best_xgb_model.predict(X_val)
     y_pred_xgb = (y_prob_xgb > 0.5).astype(int)
