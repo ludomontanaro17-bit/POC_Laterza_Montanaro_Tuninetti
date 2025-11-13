@@ -15,7 +15,6 @@ class API:
         # Questo abilita l'esportazione automatica di metriche HTTP
         self.metrics = PrometheusMetrics(self.app)
 
-
         # Paths di default per i modelli
         if model_paths is None:
             model_paths = {
@@ -23,7 +22,7 @@ class API:
                 'logreg': "../model/logistic_regression_model.pkl",
                 'xgboost': "../model/xgboost_model.json"
             }
-        
+
         self.model_paths = model_paths
         self.scaler_path = scaler_path
         self.models = {}
@@ -32,20 +31,54 @@ class API:
         # 🔹 Le feature effettive usate nel training
         self.expected_features = joblib.load("../model/final_columns.pkl")
 
+        # 🔥 MODIFICA: Inizializza pesi e performance
+        self.model_weights = {}
+        self.performance_metrics = {}
 
-        # Pesi per il soft voting (basati sulle performance)
+        # Caricamento automatico all'avvio
+        self._load_all_models()
+        self._load_scaler()
+        self._load_performance_weights()  # 🔥 NUOVO: Carica pesi basati su performance
+
+        # Registrazione endpoints
+        self._register_routes()
+
+    def _load_performance_weights(self):
+        """Carica i pesi dei modelli basati sulle performance ROC AUC."""
+        try:
+            # Prova a caricare i pesi pre-calcolati dal training
+            weights_path = "../model/model_weights.pkl"
+            metrics_path = "../model/model_performance_metrics.pkl"
+
+            if os.path.exists(weights_path):
+                self.model_weights = joblib.load(weights_path)
+                self.performance_metrics = joblib.load(metrics_path)
+                print("✅ Pesi dei modelli caricati basati su performance ROC AUC")
+
+                # Mostra i pesi e le performance
+                print("🎯 Performance dei modelli (AUC ROC):")
+                for model, weight in self.model_weights.items():
+                    auc = self.performance_metrics[model]['auc_roc']
+                    print(f"   {model}: peso {weight:.3f} (AUC: {auc:.3f})")
+
+            else:
+                # Fallback: usa pesi di default
+                print("⚠️ File pesi non trovato, uso pesi default")
+                self._load_default_weights()
+
+        except Exception as e:
+            print(f"❌ Errore nel caricamento pesi: {e}")
+            self._load_default_weights()
+
+    def _load_default_weights(self):
+        """Carica pesi di default in caso di errore."""
         self.model_weights = {
             'keras': 0.4,
             'xgboost': 0.35,
             'logreg': 0.25
         }
-
-        # Caricamento automatico all'avvio
-        self._load_all_models()
-        self._load_scaler()
-
-        # Registrazione endpoints
-        self._register_routes()
+        self.performance_metrics = {}
+        print("🔄 Uso pesi di default")
 
     def _prepare_features_from_input(self, raw_features_dict):
         """
@@ -282,85 +315,61 @@ class API:
 
     def _soft_voting(self, individual_predictions):
         """
-        Esegue il soft voting pesato tra le probabilità predette dai vari modelli.
-
-        individual_predictions: dict
-            Esempio:
-            {
-                'logreg': 0.82,
-                'xgboost': 0.91,
-                'keras': 0.60
-            }
-
-        Ritorna: dict
-            {
-                'final_prediction': 1 o 0,
-                'final_probability': float,
-                'voting_details': [...],
-                'individual_predictions': {...}
-            }
+        Esegue il soft voting pesato basato sulle performance ROC AUC.
         """
-
-        # Somma dei pesi utilizzati per fare la media pesata
         total_weight = 0
-
-        # Somma delle probabilità pesate (probabilità * peso)
         weighted_sum = 0
-
-        # Dettagli utili per debugging e explainability
         voting_details = []
 
         # ---------------------------------------------------------
-        # 1. Scorriamo tutte le probabilità dei modelli (logreg, xgboost, keras, ...)
+        # 1. Calcolo con pesi basati su performance ROC AUC
         # ---------------------------------------------------------
         for model_name, prob in individual_predictions.items():
-
-            # Consideriamo solo i modelli che hanno effettivamente un peso assegnato
             if model_name in self.model_weights:
-                # Peso del modello (ad esempio: xgboost = 1.0, logreg = 0.8, keras = 0.6)
                 weight = self.model_weights[model_name]
 
-                # Aggiorniamo la somma pesata: probabilità * peso
                 weighted_sum += prob * weight
-
-                # Aggiorniamo la somma totale dei pesi
                 total_weight += weight
 
-                # Salviamo informazioni dettagliate per analisi o debugging
+                # Aggiungi informazioni sulle performance per il frontend
+                model_performance = self.performance_metrics.get(model_name, {})
+                auc_score = model_performance.get('auc_roc', 'N/A')
+                accuracy = model_performance.get('accuracy', 'N/A')
+
                 voting_details.append({
                     'model': model_name,
                     'probability': float(prob),
                     'weight': weight,
-                    'weighted_prob': float(prob * weight)
+                    'weighted_prob': float(prob * weight),
+                    'performance': {
+                        'auc_roc': auc_score,
+                        'accuracy': accuracy
+                    }
                 })
 
         # ---------------------------------------------------------
         # 2. Calcolo della probabilità finale combinata
         # ---------------------------------------------------------
-
         if total_weight > 0:
-            # Media pesata delle probabilità:
-            #   final_probability = Σ(prob_i * weight_i) / Σ(weight_i)
             final_probability = weighted_sum / total_weight
-
         else:
-            # Caso raro: se per qualche motivo NESSUN modello ha un peso,
-            # usiamo la media semplice delle probabilità.
+            # Caso di fallback
             final_probability = sum(individual_predictions.values()) / len(individual_predictions)
 
         # ---------------------------------------------------------
-        # 3. Conversione probabilità → classe (threshold = 0.5)
+        # 3. Conversione probabilità → classe
         # ---------------------------------------------------------
         final_prediction = 1 if final_probability > 0.5 else 0
 
         # ---------------------------------------------------------
-        # 4. Restituzione dei risultati in formato strutturato
+        # 4. Restituzione risultati
         # ---------------------------------------------------------
         return {
-            'final_prediction': final_prediction,  # Classe finale: 0 o 1
-            'final_probability': float(final_probability),  # Probabilità finale combinata
-            'voting_details': voting_details,  # Breakdown per modello
-            'individual_predictions': individual_predictions  # Probabilità originali
+            'final_prediction': final_prediction,
+            'final_probability': float(final_probability),
+            'voting_details': voting_details,
+            'individual_predictions': individual_predictions,
+            'voting_method': 'roc_auc_based'  # 🔥 NUOVO: indica il metodo usato
         }
 
     def _register_routes(self):

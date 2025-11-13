@@ -469,6 +469,64 @@ def main():
                 dpi=150, bbox_inches='tight')
     plt.close()
 
+    # --- STEP 18: Salva le metriche di performance per il soft voting =======
+    print("\n--- Salvataggio metriche per soft voting ---")
+
+    # Crea un dizionario con le metriche disponibili di ogni modello
+    performance_metrics = {
+        'logreg': {
+            'auc_roc': metrics_lr['auc_roc'],
+            'accuracy': metrics_lr['accuracy'],
+            # Usa f1 se disponibile, altrimenti calcola una metrica alternativa
+            'f1_score': metrics_lr.get('f1_score', metrics_lr.get('f1', 0.0))
+        },
+        'xgboost': {
+            'auc_roc': metrics_xgb['auc_roc'],
+            'accuracy': metrics_xgb['accuracy'],
+            'f1_score': metrics_xgb.get('f1_score', metrics_xgb.get('f1', 0.0))
+        },
+        'keras': {
+            'auc_roc': metrics_keras['auc_roc'],
+            'accuracy': metrics_keras['accuracy'],
+            'f1_score': metrics_keras.get('f1_score', metrics_keras.get('f1', 0.0))
+        }
+    }
+
+    # 🔥 DEBUG: Verifica quali metriche sono disponibili
+    print("🔍 Metriche disponibili per Logistic Regression:")
+    for key, value in metrics_lr.items():
+        print(f"  {key}: {value}")
+
+    print("🔍 Metriche disponibili per XGBoost:")
+    for key, value in metrics_xgb.items():
+        print(f"  {key}: {value}")
+
+    print("🔍 Metriche disponibili per Keras:")
+    for key, value in metrics_keras.items():
+        print(f"  {key}: {value}")
+
+    # Salva le metriche (solo quelle che esistono)
+    joblib.dump(performance_metrics, os.path.join(model_dir, "model_performance_metrics.pkl"))
+    print("✅ Metriche di performance salvate per il soft voting")
+
+    # Calcola e mostra i pesi basati sull'AUC
+    auc_scores = {
+        'logreg': metrics_lr['auc_roc'],
+        'xgboost': metrics_xgb['auc_roc'],
+        'keras': metrics_keras['auc_roc']
+    }
+
+    total_auc = sum(auc_scores.values())
+    model_weights = {model: auc / total_auc for model, auc in auc_scores.items()}
+
+    print("🎯 Pesi calcolati basati su AUC ROC:")
+    for model, weight in model_weights.items():
+        print(f"  {model}: {weight:.3f} (AUC: {auc_scores[model]:.3f})")
+
+    # Salva anche i pesi calcolati
+    joblib.dump(model_weights, os.path.join(model_dir, "model_weights.pkl"))
+    print("✅ Pesi dei modelli salvati")
+
 
 if __name__ == "__main__":
     main()
