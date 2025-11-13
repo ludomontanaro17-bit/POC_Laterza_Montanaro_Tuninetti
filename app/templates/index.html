@@ -186,30 +186,30 @@
                     <div class="row g-3">
                         <div class="col-md-3">
                             <label class="form-label fw-bold">Genere</label>
-                            <select class="form-select feature-input" name="Gender_Male" required>
-                                <option value="0">Femmina</option>
-                                <option value="1">Maschio</option>
+                            <select class="form-select feature-input" name="Gender" required>
+                                <option value="Female">Femmina</option>
+                                <option value="Male">Maschio</option>
                             </select>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label fw-bold">Stato Civile</label>
-                            <select class="form-select feature-input" name="Married_Yes" required>
-                                <option value="0">Non Sposato</option>
-                                <option value="1">Sposato</option>
+                            <select class="form-select feature-input" name="Married" required>
+                                <option value="No">Non Sposato</option>
+                                <option value="Yes">Sposato</option>
                             </select>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label fw-bold">Istruzione</label>
-                            <select class="form-select feature-input" name="Education_Not Graduate" required>
-                                <option value="0">Laureato</option>
-                                <option value="1">Non Laureato</option>
+                            <select class="form-select feature-input" name="Education" required>
+                                <option value="Graduate">Laureato</option>
+                                <option value="Not Graduate">Non Laureato</option>
                             </select>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label fw-bold">Lavoratore Autonomo</label>
-                            <select class="form-select feature-input" name="Self_Employed_Yes" required>
-                                <option value="0">Dipendente</option>
-                                <option value="1">Autonomo</option>
+                            <select class="form-select feature-input" name="Self_Employed" required>
+                                <option value="No">Dipendente</option>
+                                <option value="Yes">Autonomo</option>
                             </select>
                         </div>
                     </div>
@@ -223,23 +223,26 @@
                     <div class="row g-3">
                         <div class="col-md-3">
                             <label class="form-label fw-bold">Reddito Richiedente (€)</label>
-                            <input type="number" class="form-control feature-input" id="ApplicantIncome" 
+                            <input type="number" class="form-control feature-input" id="ApplicantIncome"
                                    min="0" step="100" placeholder="3000" required>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label fw-bold">Reddito Co-richiedente (€)</label>
-                            <input type="number" class="form-control feature-input" id="CoapplicantIncome" 
+                            <input type="number" class="form-control feature-input" id="CoapplicantIncome"
                                    min="0" step="100" placeholder="1500" required>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label fw-bold">Importo Prestito (€)</label>
-                            <input type="number" class="form-control feature-input" name="LoanAmount" 
+                            <input type="number" class="form-control feature-input" name="LoanAmount"
                                    min="0" step="1000" placeholder="150000" required>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label fw-bold">Durata Prestito (mesi)</label>
-                            <input type="number" class="form-control feature-input" name="Loan_Amount_Term" 
-                                   min="0" step="12" placeholder="360" required>
+                            <select class="form-select feature-input" name="Loan_Amount_Term" required>
+                                <option value="180">180 mesi (15 anni)</option>
+                                <option value="240">240 mesi (20 anni)</option>
+                                <option value="360" selected>360 mesi (30 anni)</option>
+                            </select>
                         </div>
                     </div>
                 </div>
@@ -252,7 +255,7 @@
                     <div class="row g-3">
                         <div class="col-md-3">
                             <label class="form-label fw-bold">Familiari a carico</label>
-                            <input type="number" class="form-control feature-input" name="Dependents" 
+                            <input type="number" class="form-control feature-input" name="Dependents"
                                    min="0" max="10" placeholder="2" required>
                         </div>
                         <div class="col-md-3">
@@ -304,19 +307,19 @@
                 <!-- Tabs for Detailed Results -->
                 <ul class="nav nav-tabs mb-4" id="resultsTab" role="tablist">
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="ensemble-tab" data-bs-toggle="tab" 
+                        <button class="nav-link active" id="ensemble-tab" data-bs-toggle="tab"
                                 data-bs-target="#ensemble" type="button" role="tab">
                             <i class="fas fa-chess-queen me-2"></i>Ensemble Finale
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="models-tab" data-bs-toggle="tab" 
+                        <button class="nav-link" id="models-tab" data-bs-toggle="tab"
                                 data-bs-target="#models" type="button" role="tab">
                             <i class="fas fa-microchip me-2"></i>Modelli Individuali
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="voting-tab" data-bs-toggle="tab" 
+                        <button class="nav-link" id="voting-tab" data-bs-toggle="tab"
                                 data-bs-target="#voting" type="button" role="tab">
                             <i class="fas fa-calculator me-2"></i>Soft Voting
                         </button>
@@ -396,16 +399,6 @@
             </div>
         </div>
     </div>
-
-
-    <!-- Campi nascosti per gestire le features create da noi-->
-    <input type="hidden" id="HasDependents" name="HasDependents" value="0">
-    <input type="hidden" id="IsMarried" name="IsMarried" value="0">
-    <input type="hidden" id="IsGraduate" name="IsGraduate" value="1">
-    <input type="hidden" id="Income_bracket" name="Income_bracket" value="0">
-    <input type="hidden" id="Credit_x_IncomeHigh" name="Credit_x_IncomeHigh" value="0">
-    <input type="hidden" id="Property_Area_Semiurban" name="Property_Area_Semiurban" value="0">
-    <input type="hidden" id="Property_Area_Urban" name="Property_Area_Urban" value="0">
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>

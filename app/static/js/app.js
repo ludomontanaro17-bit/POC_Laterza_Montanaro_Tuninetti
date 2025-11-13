@@ -59,46 +59,59 @@ class LoanPredictor {
 
     prepareFeatures() {
         const formData = new FormData(this.form);
-        const applicantIncome = parseFloat(document.getElementById('ApplicantIncome').value);
-        const coapplicantIncome = parseFloat(document.getElementById('CoapplicantIncome').value);
+
+        // 🔥 ORDINE ESATTO DELLE FEATURE COME NEL MODELLO 🔥
+        // 0: "Gender"
+        // 1: "Married"
+        // 2: "Dependents"
+        // 3: "Education"
+        // 4: "Self_Employed"
+        // 5: "LoanAmount"
+        // 6: "Loan_Amount_Term"
+        // 7: "Credit_History"
+        // 8: "TotalIncome"
+        // 9: "Property_Area_Semiurban"
+        // 10: "const formData = new FormData(this.form);
+
+        // 🔥 ORDINE ESATTO DELLE FEATURE COME NEL MODELLO 🔥
+        // 0: "Gender"
+        // 1: "Married"
+        // 2: "Dependents"
+        // 3: "Education"
+        // 4: "Self_Employed"
+        // 5: "LoanAmount"
+        // 6: "Loan_Amount_Term"
+        // 7: "CProperty_Area_Urban"
+
+        // Calcolo delle feature di base
+        const applicantIncome = parseFloat(document.getElementById('ApplicantIncome').value) || 0;
+        const coapplicantIncome = parseFloat(document.getElementById('CoapplicantIncome').value) || 0;
         const totalIncome = applicantIncome + coapplicantIncome;
-        const loanAmount = parseFloat(formData.get('LoanAmount'));
 
-        // Calcolo delle feature derivate
-        const loanAmountToIncome = totalIncome > 0 ? loanAmount / totalIncome : 0;
-        const hasDependents = parseInt(formData.get('Dependents')) > 0 ? 1 : 0;
+        // Prepara i valori per le feature categoriche
+        const gender = formData.get('Gender') === 'Male' ? 1 : 0;
+        const married = formData.get('Married') === 'Yes' ? 1 : 0;
+        const education = formData.get('Education') === 'Graduate' ? 1 : 0;
+        const selfEmployed = formData.get('Self_Employed') === 'Yes' ? 1 : 0;
 
-        // Codifica one-hot per Property_Area
+        // Prepara Property_Area (one-hot encoding)
         const propertyArea = formData.get('Property_Area');
         const propertyAreaSemiurban = propertyArea === 'Semiurban' ? 1 : 0;
         const propertyAreaUrban = propertyArea === 'Urban' ? 1 : 0;
 
-        // Codifica per le feature categoriche
-        const isMarried = parseInt(formData.get('Married_Yes'));
-        const isGraduate = parseInt(formData.get('Education_Not Graduate')) === 0 ? 1 : 0;
-
-        // Calcolo income bracket (soglia a 5000)
-        const incomeBracket = totalIncome > 5000 ? 1 : 0;
-        const creditXIncomeHigh = parseInt(formData.get('Credit_History')) * incomeBracket;
-
+        // 🔥 ARRAY NELL'ORDINE ESATTO ATTESO DAL MODELLO 🔥
         return [
-            parseFloat(formData.get('Dependents')),         // 00 Dependents
-            loanAmount,                                     // 01 LoanAmount
-            parseFloat(formData.get('Loan_Amount_Term')),   // 02 Loan_Amount_Term
-            parseFloat(formData.get('Credit_History')),     // 03 Credit_History
-            totalIncome,                                    // 06 TotalIncome
-            loanAmountToIncome,                             // 07 LoanAmount_to_Income
-            hasDependents,                                  // 08 HasDependents
-            isMarried,                                      // 09 IsMarried
-            isGraduate,                                     // 10 IsGraduate
-            incomeBracket,                                  // 11 Income_bracket
-            creditXIncomeHigh,                              // 12 Credit_x_IncomeHigh
-            parseFloat(formData.get('Gender_Male')),        // 13 Gender_Male
-            isMarried,                                      // 14 Married_Yes (duplicato)
-            parseInt(formData.get('Education_Not Graduate')),// 15 Education_Not Graduate
-            parseInt(formData.get('Self_Employed_Yes')),    // 16 Self_Employed_Yes
-            propertyAreaSemiurban,                          // 17 Property_Area_Semiurban
-            propertyAreaUrban                               // 18 Property_Area_Urban
+            gender,                         // 0: "Gender" (Male=1, Female=0)
+            married,                        // 1: "Married" (Yes=1, No=0)
+            parseFloat(formData.get('Dependents')) || 0, // 2: "Dependents" (0,1,2,3)
+            education,                      // 3: "Education" (Graduate=1, Not Graduate=0)
+            selfEmployed,                   // 4: "Self_Employed" (Yes=1, No=0)
+            parseFloat(formData.get('LoanAmount')) || 0, // 5: "LoanAmount"
+            parseFloat(formData.get('Loan_Amount_Term')) || 0, // 6: "Loan_Amount_Term"
+            parseFloat(formData.get('Credit_History')) || 0, // 7: "Credit_History" (1=Yes, 0=No)
+            totalIncome,                    // 8: "TotalIncome"
+            propertyAreaSemiurban,          // 9: "Property_Area_Semiurban"
+            propertyAreaUrban               // 10: "Property_Area_Urban"
         ];
     }
 
@@ -165,11 +178,33 @@ class LoanPredictor {
             bar.style.transition = 'width 2s cubic-bezier(0.4, 0, 0.2, 1)';
             bar.style.width = `${percentage}%`;
 
-            // Animazione del contatore
-            this.animateValue(0, parseFloat(percentage), 2000, (value) => {
-                value.textContent = `${Math.round(value)}%`;
-            }, value);
+            // Animazione del contatore - VERSIONE CORRETTA
+            this.animateValue(0, parseFloat(percentage), 2000, (currentValue) => {
+                value.textContent = `${Math.round(currentValue)}%`;
+            });
         }, 300);
+    }
+
+    animateValue(start, end, duration, callback) {
+        const startTime = performance.now();
+        const change = end - start;
+
+        const updateValue = (currentTime) => {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+
+            // Easing function
+            const easeOutQuart = 1 - Math.pow(1 - progress, 4);
+            const currentValue = start + (change * easeOutQuart);
+
+            callback(currentValue);
+
+            if (progress < 1) {
+                requestAnimationFrame(updateValue);
+            }
+        }
+
+        requestAnimationFrame(updateValue);
     }
 
     animateValue(start, end, duration, callback, element) {

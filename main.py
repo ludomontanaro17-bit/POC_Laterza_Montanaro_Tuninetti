@@ -158,18 +158,16 @@ def main():
     X_train, X_val, y_train, y_val = prep.split_data(df_preprocessed, test_size=0.1, random_state=42)
     print("✅ Train-test split completato.")
     print(f"Train size: {len(X_train)}, Validation size: {len(X_val)}")
-    print(X_train.columns) 
-    
+    print(X_train.columns)
+
     # === Step 5.5: Prepara i nomi delle feature =============================
-    feature_names = X_train.columns.tolist()
-    print(f"Numero di feature: {len(feature_names)}")
-    print("Prime 10 feature:", feature_names[:10])
+    final_feature_list = df_preprocessed.drop(columns=['Loan_Status']).columns.tolist()
+
+    # Salva UNA sola volta i nomi delle feature usate dai modelli
+    joblib.dump(final_feature_list, os.path.join(model_dir, "feature_names.pkl"))
+    joblib.dump(final_feature_list, os.path.join(model_dir, "final_columns.pkl"))
 
     # === Step 6: Salvataggio oggetti utili ==================================
-    joblib.dump(feature_names, os.path.join(model_dir, "feature_names.pkl"))
-    joblib.dump(df_preprocessed.drop(columns=['Loan_Status']).columns.tolist(),
-                os.path.join(model_dir, "final_columns.pkl"))
-
     if hasattr(prep, 'scaler'):
         joblib.dump(prep.scaler, os.path.join(model_dir, "scaler.pkl"))
 
@@ -312,28 +310,27 @@ def main():
     print(f"Keras Neural Network - Accuracy: {metrics_keras['accuracy']:.4f}, AUC: {metrics_keras['auc_roc']:.4f}")
     print(f"XGBoost - Accuracy: {metrics_xgb['accuracy']:.4f}, AUC: {metrics_xgb['auc_roc']:.4f}")
 
-    # --- DOPO le predizioni, aggiungi: ---
 
-    print("\n🔍 DEBUG PREDIZIONI:")
-    print("=== Logistic Regression ===")
-    print(f"Probabilità range: [{y_prob_lr.min():.3f}, {y_prob_lr.max():.3f}]")
-    print(f"Classi predette: {np.unique(y_pred_lr, return_counts=True)}")
-
-    print("\n=== XGBoost ===")
-    print(f"Probabilità range: [{y_prob_xgb.min():.3f}, {y_prob_xgb.max():.3f}]")
-    print(f"Classi predette: {np.unique(y_pred_xgb, return_counts=True)}")
-
-    print("\n=== Keras ===")
-    print(f"Probabilità range: [{y_prob_keras.min():.3f}, {y_prob_keras.max():.3f}]")
-    print(f"Classi predette: {np.unique(y_pred_keras, return_counts=True)}")
-
-    # Verifica threshold
-    print(f"\n🔍 Soglia attuale: 0.5")
-    print(f"Logistic - Numero sopra soglia: {np.sum(y_prob_lr > 0.5)}")
-    print(f"XGBoost - Numero sopra soglia: {np.sum(y_prob_xgb > 0.5)}")
-    print(f"Keras - Numero sopra soglia: {np.sum(y_prob_keras > 0.5)}")
-
-    print("\n🏁 Tutte le valutazioni e confronti completati!")
+    #print("\n🔍 DEBUG PREDIZIONI:")
+    #print("=== Logistic Regression ===")
+    #print(f"Probabilità range: [{y_prob_lr.min():.3f}, {y_prob_lr.max():.3f}]")
+    #print(f"Classi predette: {np.unique(y_pred_lr, return_counts=True)}")
+#
+    #print("\n=== XGBoost ===")
+    #print(f"Probabilità range: [{y_prob_xgb.min():.3f}, {y_prob_xgb.max():.3f}]")
+    #print(f"Classi predette: {np.unique(y_pred_xgb, return_counts=True)}")
+#
+    #print("\n=== Keras ===")
+    #print(f"Probabilità range: [{y_prob_keras.min():.3f}, {y_prob_keras.max():.3f}]")
+    #print(f"Classi predette: {np.unique(y_pred_keras, return_counts=True)}")
+#
+    ## Verifica threshold
+    #print(f"\n🔍 Soglia attuale: 0.5")
+    #print(f"Logistic - Numero sopra soglia: {np.sum(y_prob_lr > 0.5)}")
+    #print(f"XGBoost - Numero sopra soglia: {np.sum(y_prob_xgb > 0.5)}")
+    #print(f"Keras - Numero sopra soglia: {np.sum(y_prob_keras > 0.5)}")
+#
+    #print("\n🏁 Tutte le valutazioni e confronti completati!")
 
     # --- STEP 16: Analisi Importanza Features ===============================
     print("\n--- Analisi Importanza Features ---")
@@ -347,7 +344,7 @@ def main():
     # Logistic Regression
     print("🔍 Analizzando importanza features Logistic Regression...")
     lr_importance = feature_analyzer.analyze_logistic_regression_importance(
-        best_lr_model, feature_names, X_val, y_val
+        best_lr_model, final_feature_list, X_val, y_val
     )
     importance_results['Logistic Regression'] = lr_importance
     if lr_importance is not None:
@@ -357,7 +354,7 @@ def main():
     # XGBoost
     print("🔍 Analizzando importanza features XGBoost...")
     xgb_importance = feature_analyzer.analyze_xgboost_importance(
-        best_xgb_model, feature_names
+        best_xgb_model, final_feature_list
     )
     importance_results['XGBoost'] = xgb_importance
     if xgb_importance is not None:
@@ -367,7 +364,7 @@ def main():
     # Keras Neural Network
     print("🔍 Analizzando importanza features Keras...")
     keras_importance = feature_analyzer.analyze_keras_importance(
-        keras_model.model, feature_names, X_val, y_val
+        keras_model.model, final_feature_list, X_val, y_val
     )
     importance_results['Keras NN'] = keras_importance
     if keras_importance is not None:
@@ -389,7 +386,7 @@ def main():
         """Analizza il consenso tra i modelli sulle feature più importanti."""
         consensus_scores = {}
 
-        for feature in feature_names:
+        for feature in final_feature_list:
             score = 0
             appearances = 0
 
