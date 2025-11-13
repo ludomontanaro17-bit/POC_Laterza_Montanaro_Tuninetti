@@ -183,11 +183,31 @@ def main():
     #         print(f"\n🔍 {col} → {X_train[col].unique()[:10]}")
 
     # --- STEP 6: Addestramento Logistic Regression ==========================
-    print("\n--- Addestramento Logistic Regression ---")
-    logreg_model = LogisticRegressionModel(model_dir="model")
-    logreg_model.train(X_train, y_train)
-    y_pred_lr, y_prob_lr = logreg_model.predict(X_val)
-    logreg_model.save_model()
+    print("\n--- Logistic Regression: Cross-Validation (Train Set) ---")
+
+    logreg_base = LogisticRegressionModel(model_dir="model")
+
+    cv_lr = CrossValidator(
+        model=logreg_base.model,
+        cv=5,
+        scoring=['accuracy', 'roc_auc']
+    )
+
+    cv_lr.validate(X_train, y_train)
+
+    # Seleziona il modello migliore (in base all'AUC)
+    best_idx_lr = np.argmax(cv_lr.cv_results_['test_roc_auc'])
+    best_lr_model = cv_lr.fitted_models[best_idx_lr]
+
+    print(f"🎯 Miglior modello LR è il fold #{best_idx_lr} con AUC={cv_lr.cv_results_['test_roc_auc'][best_idx_lr]:.4f}")
+
+    # --- SALVA IL MODELLO SCELTO DALLA CROSS ---
+    joblib.dump(best_lr_model, os.path.join(model_dir, "logistic_regression_model.pkl"))
+    print("💾 Logistic Regression salvato (best fold dalla cross validation).")
+
+    # --- Predizioni sul validation set usando il modello migliore ---
+    y_prob_lr = best_lr_model.predict_proba(X_val)[:, 1]
+    y_pred_lr = (y_prob_lr > 0.5).astype(int)
 
     # --- STEP 7: Valutazione Logistic Regression (Test Set) =================
     print("\n🔍 Valutazione Logistic Regression (Test Set):")
@@ -199,12 +219,7 @@ def main():
     )
     metrics_lr = evaluator_lr.evaluate() # Ottieni i risultati per il confronto
 
-    # --- STEP 8: Cross-Validation Logistic Regression (su Train Set) ========
-    print("\n🔍 Cross-Validation Logistic Regression (Train Set):")
-    cv_lr = CrossValidator(model=logreg_model.model, cv=5, scoring=['accuracy', 'roc_auc'])
-    cv_lr.validate(X_train, y_train)
-    cv_results_lr = cv_lr.get_mean_test_scores()
-    print(f"Mean CV Accuracy: {cv_results_lr['accuracy']:.4f}, Mean CV AUC: {cv_results_lr['roc_auc']:.4f}")
+
 
 
     # --- STEP 9: Addestramento Rete Neurale Keras ===========================
@@ -252,23 +267,33 @@ def main():
     # Per ora, saltiamo la CV per Keras per semplicità, a meno che tu non implementi il wrapper scikeras.
 
     # --- STEP 12: Addestramento XGBoost ====================================
-    print("\n--- Addestramento XGBoost ---")
-    xgb_model = XGBoostModel(model_dir="model")
-    xgb_model.train(
-        X_train=X_train,
-        y_train=y_train,
-        X_val=X_val,
-        y_val=y_val,
-        n_estimators=100, # Esempio di iperparametro
-        learning_rate=0.1,
-        max_depth=6
-        # scale_pos_weight viene calcolato automaticamente in train()
-    )
-    xgb_model.save_model()
 
-    # Predizioni XGBoost
-    y_prob_xgb = xgb_model.predict(X_val)
-    y_pred_xgb = xgb_model.predict_classes(X_val)
+    print("\n--- XGBoost: Cross-Validation (Train Set) ---")
+
+    xgb_base = XGBoostModel(model_dir="model")
+
+    cv_xgb = CrossValidator(
+        model=xgb_base.model,
+        cv=5,
+        scoring=['accuracy', 'roc_auc']
+    )
+
+    cv_xgb.validate(X_train, y_train)
+
+    # scegliamo il modello migliore sui fold
+    best_idx_xgb = np.argmax(cv_xgb.cv_results_['test_roc_auc'])
+    best_xgb_model = cv_xgb.fitted_models[best_idx_xgb]
+
+    print(f"🎯 Miglior XGBoost fold = {best_idx_xgb}, AUC = {cv_xgb.cv_results_['test_roc_auc'][best_idx_xgb]:.4f}")
+
+    # --- SALVA IL MIGLIOR MODELLO ---
+    best_xgb_model.save_model('xgboost_model.json')
+    print("💾 XGBoost salvato (best fold dalla cross validation).")
+
+    # --- Predizioni ---
+    y_prob_xgb = best_xgb_model.predict(X_val)
+    y_pred_xgb = (y_prob_xgb > 0.5).astype(int)
+
 
     # --- STEP 13: Valutazione XGBoost (Test Set) ============================
     print("\n🔍 Valutazione XGBoost (Test Set):")
@@ -279,13 +304,6 @@ def main():
         model_name="XGBoost"
     )
     metrics_xgb = evaluator_xgb.evaluate() # Ottieni i risultati per il confronto
-
-    # --- STEP 14: Cross-Validation XGBoost (su Train Set) ===================
-    print("\n🔍 Cross-Validation XGBoost (Train Set):")
-    cv_xgb = CrossValidator(model=xgb_model.model, cv=5, scoring=['accuracy', 'roc_auc'])
-    cv_xgb.validate(X_train, y_train)
-    cv_results_xgb = cv_xgb.get_mean_test_scores()
-    print(f"Mean CV Accuracy: {cv_results_xgb['accuracy']:.4f}, Mean CV AUC: {cv_results_xgb['roc_auc']:.4f}")
 
 
     # --- STEP 15: Confronto Finale Modelli (Test Set) =======================
@@ -329,7 +347,7 @@ def main():
     # Logistic Regression
     print("🔍 Analizzando importanza features Logistic Regression...")
     lr_importance = feature_analyzer.analyze_logistic_regression_importance(
-        logreg_model.model, feature_names, X_val, y_val
+        best_lr_model, feature_names, X_val, y_val
     )
     importance_results['Logistic Regression'] = lr_importance
     if lr_importance is not None:
@@ -339,7 +357,7 @@ def main():
     # XGBoost
     print("🔍 Analizzando importanza features XGBoost...")
     xgb_importance = feature_analyzer.analyze_xgboost_importance(
-        xgb_model.model, feature_names
+        best_xgb_model, feature_names
     )
     importance_results['XGBoost'] = xgb_importance
     if xgb_importance is not None:
