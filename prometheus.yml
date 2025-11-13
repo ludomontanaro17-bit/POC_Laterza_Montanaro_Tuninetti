@@ -1,0 +1,19 @@
+# prometheus.yml
+global:
+  scrape_interval: 15s # Frequenza con cui raccoglie le metriche
+
+rule_files:
+  # Qui puoi aggiungere regole di alerting o recording se necessario
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  - job_name: 'loan-api'
+    static_configs:
+      # Il nome 'loan-api' deve corrispondere al nome del servizio in docker-compose.yml
+      # Prometheus cercherà l'endpoint /metrics su questo servizio
+      - targets: ['loan-api:5000']
+    # Specifica il percorso esatto dove il tuo Flask app esporrà le metriche
+    metrics_path: '/metrics'
+    # Tempo massimo per una richiesta di scraping
+    scrape_timeout: 10s

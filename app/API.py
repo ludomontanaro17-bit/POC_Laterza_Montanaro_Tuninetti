@@ -5,12 +5,17 @@ import joblib
 import os
 from sklearn.linear_model import LogisticRegression
 import xgboost as xgb
+from prometheus_flask_exporter import PrometheusMetrics
 
 class API:
     def __init__(self, model_paths=None, scaler_path="model/scaler.pkl"):
         """Inizializza il server Flask e carica tutti i modelli."""
         self.app = Flask(__name__)
-        
+
+        # Questo abilita l'esportazione automatica di metriche HTTP
+        self.metrics = PrometheusMetrics(self.app)
+
+
         # Paths di default per i modelli
         if model_paths is None:
             model_paths = {

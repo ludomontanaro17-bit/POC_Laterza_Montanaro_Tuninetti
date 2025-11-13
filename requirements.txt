@@ -1,44 +1,78 @@
-# Data manipulation and analysis
-pandas>=1.5.0
-numpy>=1.24.0
+# --- Machine Learning & Data Science ---
+pandas>=2.0.0  # Compatibile con Python 3.11
+numpy>=1.24.0  # Compatibile con Python 3.11; puoi anche usare >=2.0.0 se richiesto da altre librerie
+scikit-learn>=1.3.0 # Compatibile con Python 3.11
+scipy>=1.10.0   # Compatibile con Python 3.11
+xgboost>=2.0.0  # Compatibile con Python 3.11
+tensorflow>=2.13.0 # Versione specifica compatibile con Python 3.11 (e successive fino a un certo punto)
+keras>=2.13.0   # Dovrebbe essere compatibile con TF 2.13
+scikeras>=0.11.0 # Controlla la compatibilità con la versione di Keras usata
 
-# Machine Learning
-scikit-learn>=1.3.0
-xgboost>=2.0.0
-# Se usi Keras/TensorFlow per Deep Learning
-tensorflow>=2.13.0
-# Se usi scikeras per integrare Keras con scikit-learn
-scikeras>=0.11.0
+# --- Data Visualization ---
+matplotlib>=3.7.0 # Compatibile con Python 3.11
+seaborn>=0.12.0  # Compatibile con Python 3.11
 
-# Visualization
-matplotlib>=3.7.0
-seaborn>=0.12.0
-# Se usi plotly per visualizzazioni interattive
-plotly>=5.15.0
+# --- Utilities ---
+joblib>=1.2.0   # Compatibile con Python 3.11
+python-slugify>=8.0.0 # Dipendenza di python-slugify
 
-# Utilities
-joblib>=1.2.0
+# --- Web Framework & Monitoring ---
+Flask>=2.3.0    # Compatibile con Python 3.11
+prometheus-flask-exporter>=1.0.0 # Compatibile con Python 3.11
 
-# Interfaccia grafica interattiva (Streamlit)
-streamlit>=1.28.0
+# --- API & Data Handling ---
+requests>=2.30.0 # Compatibile con Python 3.11
+kaggle>=1.5.16  # Controlla la compatibilità, ma versioni recenti spesso supportano 3.11
 
-# Web API (se implementi Flask/FastAPI)
-Flask>=2.3.0
-# oppure
-# fastapi>=0.104.0
-# uvicorn>=0.23.0 # per eseguire FastAPI
+# --- Altre dipendenze specifiche (spesso richieste da quelle sopra) ---
+absl-py>=2.0.0  # Compatibile con Python 3.11
+astunparse>=1.6.0 # Compatibile con Python 3.11
+blinker>=1.6.0  # Compatibile con Python 3.11
+cycler>=0.11.0  # Compatibile con Python 3.11
+flatbuffers>=23.0.0 # Controlla, ma spesso compatibile
+gast>=0.5.0     # Compatibile con Python 3.11
+google-pasta>=0.2.0 # Compatibile con Python 3.11
+grpcio>=1.50.0  # Compatibile con Python 3.11
+h5py>=3.8.0     # Compatibile con Python 3.11
+itsdangerous>=2.1.0 # Compatibile con Python 3.11
+Jinja2>=3.1.0   # Compatibile con Python 3.11
+kiwisolver>=1.4.0 # Compatibile con Python 3.11
+libclang>=15.0.0 # Controlla, ma spesso compatibile
+Markdown>=3.4.0 # Compatibile con Python 3.11
+MarkupSafe>=2.1.0 # Compatibile con Python 3.11
+ml-dtypes>=0.2.0 # Compatibile con Python 3.11 (versioni successive potrebbero richiedere 3.12)
+namex>=0.0.7    # Compatibile con Python 3.11
+opt_einsum>=3.3.0 # Compatibile con Python 3.11
+optree>=0.8.0   # Controlla, ma spesso compatibile con 3.11
+packaging>=23.0 # Compatibile con Python 3.11
+pillow>=9.0.0   # Compatibile con Python 3.11
+protobuf>=4.21.0 # Compatibile con Python 3.11 (attenzione alle versioni molto recenti)
+pyparsing>=3.0.0 # Compatibile con Python 3.11
+python-dateutil>=2.8.0 # Compatibile con Python 3.11
+pytz>=2022.0    # Compatibile con Python 3.11
+setuptools>=65.0.0 # Compatibile con Python 3.11
+six>=1.16.0     # Compatibile con Python 3.11
+tensorboard>=2.13.0 # Compatibile con Python 3.11 (insieme a TF 2.13)
+tensorboard-data-server>=0.7.0 # Compatibile con Python 3.11
+termcolor>=2.0.0 # Compatibile con Python 3.11
+text-unidecode>=1.3 # Compatibile con Python 3.11
+threadpoolctl>=3.0.0 # Compatibile con Python 3.11
+tqdm>=4.64.0    # Compatibile con Python 3.11
+typing_extensions>=4.5.0 # Spesso utile per Python < 3.12, compatibile
+tzdata>=2022.0  # Compatibile con Python 3.11
+urllib3>=1.26.0 # Compatibile con Python 3.11
+Werkzeug>=2.3.0 # Compatibile con Python 3.11
+wheel>=0.40.0   # Compatibile con Python 3.11
+wrapt>=1.14.0   # Compatibile con Python 3.11
 
-# Altre utilità che potresti aver usato o potresti usare
-# requests>=2.31.0 # per fare richieste web, es. all'API di Kaggle
-# python-dotenv>=1.0.0 # per gestire variabili d'ambiente da un file .env
+# --- Markup & Text Processing (spesso richieste da altre librerie) ---
+bleach>=6.0.0   # Compatibile con Python 3.11
+markdown-it-py>=3.0.0 # Compatibile con Python 3.11
+mdurl>=0.1.0    # Compatibile con Python 3.11
+webencodings>=0.5.1 # Compatibile con Python 3.11
 
-# Opzionale: per interpretazione del modello
-shap>=0.42.0
+# --- NCCL (NVIDIA Collective Communication Library) ---
+# nvidia-nccl-cu12>=... # Solo se usi GPU NVIDIA e Docker è configurato per CUDA.
+# Solitamente non è necessario specificarlo qui se usi l'immagine TensorFlow con CUDA.
 
-# Opzionale: per l'hyperparameter tuning avanzato (oltre a quello base di sklearn)
-# optuna>=3.3.0
-# ray[tune]>=2.6.0 # richiede installazione separata di Ray
-
-# Opzionale: per il versionamento dei dati e modelli
-# dvc>=3.0.0
-# mlflow>=2.6.0
+# --- Fine del file ---
