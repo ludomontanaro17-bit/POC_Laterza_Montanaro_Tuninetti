@@ -18,9 +18,9 @@ class API:
         # Paths di default per i modelli
         if model_paths is None:
             model_paths = {
-                'keras': "../model/keras_model.h5",
-                'logreg': "../model/logistic_regression_model.pkl",
-                'xgboost': "../model/xgboost_model.json"
+                'keras': "/app/model/keras_model.h5",
+                'logreg': "/app/model/logistic_regression_model.pkl",
+                'xgboost': "/app/model/xgboost_model.json"
             }
 
         self.model_paths = model_paths
@@ -29,7 +29,7 @@ class API:
         self.scaler = None
 
         # 🔹 Le feature effettive usate nel training
-        self.expected_features = joblib.load("../model/final_columns.pkl")
+        self.expected_features = joblib.load("/app/model/final_columns.pkl")
 
         # 🔥 MODIFICA: Inizializza pesi e performance
         self.model_weights = {}
@@ -47,8 +47,8 @@ class API:
         """Carica i pesi dei modelli basati sulle performance ROC AUC."""
         try:
             # Prova a caricare i pesi pre-calcolati dal training
-            weights_path = "../model/model_weights.pkl"
-            metrics_path = "../model/model_performance_metrics.pkl"
+            weights_path = "/app/model/model_weights.pkl"
+            metrics_path = "/app/model/model_performance_metrics.pkl"
 
             if os.path.exists(weights_path):
                 self.model_weights = joblib.load(weights_path)
@@ -482,6 +482,3 @@ class API:
 
 
 
-if __name__ == "__main__":
-    api = API()
-    api.run()

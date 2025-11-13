@@ -22,4 +22,4 @@ ENV PYTHONPATH="${PYTHONPATH}:/app"
 EXPOSE 5000
 
 # Comando di avvio: lancia l’API Flask
-CMD ["python", "app/API.py"]
+CMD ["python", "app/app.py"]

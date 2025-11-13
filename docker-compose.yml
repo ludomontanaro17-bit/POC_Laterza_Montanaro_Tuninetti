@@ -15,7 +15,8 @@ services:
       - PYTHONPATH=/app    # garantisce gli import dai moduli classes/
     volumes:
       - ./model:/app/model # monta la cartella dei modelli (per aggiornare scaler o .keras senza rebuild)
-    command: python app/API.py
+    command: python app/app.py
+
     # Aggiungi questa dipendenza per assicurarti che Prometheus parte prima
     depends_on:
       - prometheus
